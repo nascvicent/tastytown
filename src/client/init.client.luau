@@ -4,4 +4,4 @@ local WardrobeBillboardController = require(script.controllers.WardrobeBillboard
 CharacterSelectorClient.Start()
 HouseCameraController.Start()
 WardrobeBillboardController.Start()
-print(game.Players.LocalPlayer.PlayerGui:FindFirstChild("CharacterSelectionGui"))
+
