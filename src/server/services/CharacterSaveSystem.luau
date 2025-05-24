@@ -7,8 +7,15 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CharacterStore = DataStoreService:GetDataStore("PlayerCharacterChoice")
 local CharactersFolder = ReplicatedStorage:WaitForChild("Characters")
 
-local ShowSelectionEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ShowCharacterSelection")
-local CharacterChosenEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("CharacterChosen")
+local ShowSelectionEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("ShowCharacterSelection")
+local CharacterChosenEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("CharacterChosen")
+local RequestSelection = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("RequestCharacterSelection")
+
+RequestSelection.OnServerEvent:Connect(function(player)
+	print("chamou evento de trocar pelo armario")
+	ShowSelectionEvent:FireClient(player)
+end)
+
 
 local function spawnCharacter(player, characterName)
 	local model = CharactersFolder:FindFirstChild(characterName)
@@ -101,5 +108,7 @@ end)
 		end
 	end)
 end
+
+
 
 return CharacterSaveSystem
