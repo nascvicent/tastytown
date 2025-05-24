@@ -1,9 +1,7 @@
--- src/client/controllers/HouseCameraController.luau
 
 local HouseController = {}
 
 local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
