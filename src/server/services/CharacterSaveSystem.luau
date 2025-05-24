@@ -1,8 +1,6 @@
 local CharacterSaveSystem = {}
 
 local Players = game:GetService("Players")
-local camera = workspace.CurrentCamera
-local RunService = game:GetService("RunService")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -15,13 +13,31 @@ local CharacterChosenEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChi
 local function spawnCharacter(player, characterName)
 	local model = CharactersFolder:FindFirstChild(characterName)
 	if model then
+		
 		local clone = model:Clone()
 		clone.Name = player.Name
 		clone.Parent = workspace
-		
+		player.Character = clone
 
-		-- Espera um pouco para garantir que o clone foi carregado
-		task.wait(2)
+		
+		task.wait(0.1)
+
+
+			local humanoid = clone:FindFirstChildWhichIsA("Humanoid")
+		if humanoid and not humanoid:FindFirstChild("Animator") then
+			Instance.new("Animator", humanoid)
+		end
+
+		local animate = clone:FindFirstChild("Animate")
+		if animate and animate:IsA("LocalScript") then
+			animate.Disabled = true
+			task.delay(0.5, function()
+				animate.Disabled = false
+			end)
+		else
+			warn("Animate não encontrado ou não é LocalScript no personagem:", characterName)
+		end
+	
 
 		if clone.PrimaryPart then
 			local nomeCasa = player.Name .. "_Casa"
@@ -42,9 +58,7 @@ local function spawnCharacter(player, characterName)
 					end
 
 					clone:SetPrimaryPartCFrame(spawnCFrame)
-					player.Character = clone
-					camera.CameraType = Enum.CameraType.Custom
-					RunService:UnbindFromRenderStep("IsometricCamera")
+					
 				else
 					warn("Spawn não encontrado em " .. nomeCasa)
 				end

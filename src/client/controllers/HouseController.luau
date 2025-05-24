@@ -4,14 +4,15 @@ local HouseController = {}
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local EntrouNaCasa = ReplicatedStorage:WaitForChild("EntrouNaCasa")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
-
 local insideHouse = false
-
 local CasaGUI = player:WaitForChild("PlayerGui"):WaitForChild("CasaGui")
+
+
+
+
 
 local function updateIsometricCamera()
 	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -72,9 +73,19 @@ local function sairDaCasa()
 		end
 	end
 
-	camera.CameraType = Enum.CameraType.Custom
 	RunService:UnbindFromRenderStep("IsometricCamera")
+
+	-- Espera curta pra garantir que personagem novo está replicado
+	task.wait(0.1)
+
+	-- Garante que a câmera volte a seguir o humanoid novo
+	if player.Character and player.Character:FindFirstChild("Humanoid") then
+		camera.CameraSubject = player.Character.Humanoid
+	end
+
+	camera.CameraType = Enum.CameraType.Custom
 end
+
 
 local function connectTouchEvents()
 	local casaPart = getCasaTrigger()
