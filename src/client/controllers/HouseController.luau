@@ -1,18 +1,27 @@
-
 local HouseController = {}
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EntrouNaCasa = ReplicatedStorage:WaitForChild("EntrouNaCasa")
+
 local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui") -- Pegar a pasta PlayerGui é seguro
 local camera = workspace.CurrentCamera
 local insideHouse = false
-local CasaGUI = player:WaitForChild("PlayerGui"):WaitForChild("CasaGui")
 
+-- MUDANÇA 1: A variável agora começa como nula. Não tentamos pegar a GUI aqui.
+local CasaGUI = nil
 
-
-
+-- MUDANÇA 2: Criamos a nossa função segura para pegar a GUI, igual fizemos antes.
+local function getCasaGui()
+    -- Se ainda não temos a referência da GUI ou se ela foi destruída...
+    if not CasaGUI or not CasaGUI.Parent then
+        -- ...procuramos por ela com FindFirstChild, que não trava o script.
+        CasaGUI = playerGui:FindFirstChild("CasaGui")
+    end
+    return CasaGUI
+end
 
 local function updateIsometricCamera()
 	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -37,10 +46,17 @@ end
 local function entrarNaCasa()
 	if insideHouse then return end
 	insideHouse = true
+    
+    -- MUDANÇA 3: Usamos nossa função segura aqui.
+    local gui = getCasaGui()
+    if not gui then
+        warn("CasaGui não foi encontrada ao tentar entrar na casa.")
+        return 
+    end
 
-	CasaGUI.Enabled = true
+	gui.Enabled = true
 
-	local botao = CasaGUI:FindFirstChild("BotaoArmarioGui")
+	local botao = gui:FindFirstChild("BotaoArmarioGui")
 	if botao then
 		botao.Enabled = true
 		botao.Active = true
@@ -61,24 +77,26 @@ end
 local function sairDaCasa()
 	if not insideHouse then return end
 	insideHouse = false
-	CasaGUI.Enabled = false
+    
+    -- MUDANÇA 4: E usamos nossa função segura aqui também.
+    local gui = getCasaGui()
+    if gui then -- Só tentamos desabilitar se a GUI existir
+	    gui.Enabled = false
 
-	local botao = CasaGUI:FindFirstChild("BotaoArmarioGui")
-	if botao then
-		botao.Enabled = false
-		local image = botao:FindFirstChild("ImageButton")
-		if image then
-			image.Visible = false
-			image.Active = false
-		end
-	end
+	    local botao = gui:FindFirstChild("BotaoArmarioGui")
+	    if botao then
+		    botao.Enabled = false
+		    local image = botao:FindFirstChild("ImageButton")
+		    if image then
+			    image.Visible = false
+			    image.Active = false
+		    end
+	    end
+    end
 
 	RunService:UnbindFromRenderStep("IsometricCamera")
-
-	-- Espera curta pra garantir que personagem novo está replicado
 	task.wait(0.1)
 
-	-- Garante que a câmera volte a seguir o humanoid novo
 	if player.Character and player.Character:FindFirstChild("Humanoid") then
 		camera.CameraSubject = player.Character.Humanoid
 	end
@@ -89,6 +107,7 @@ end
 
 local function connectTouchEvents()
 	local casaPart = getCasaTrigger()
+	if not casaPart then return end
 
 	casaPart.Touched:Connect(function(hit)
 		if hit and hit.Parent == player.Character then
@@ -104,12 +123,16 @@ local function connectTouchEvents()
 end
 
 function HouseController.Start()
+	-- Adicionamos um pequeno delay aqui para dar tempo da casa do jogador ser criada no workspace
+	task.wait(1) 
+	
 	if player.Character then
-		task.delay(1, connectTouchEvents)
+		connectTouchEvents()
 	end
 
 	player.CharacterAdded:Connect(function()
-		task.delay(1, connectTouchEvents)
+		task.wait(1) -- Delay para garantir que a casa já foi criada após o respawn
+		connectTouchEvents()
 	end)
 end
 

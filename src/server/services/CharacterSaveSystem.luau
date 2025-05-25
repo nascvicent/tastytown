@@ -149,18 +149,23 @@ end
 
 function CharacterSaveSystem.Start()
     Players.PlayerAdded:Connect(function(player)
+        -- 1. Tenta carregar os dados do jogador
         local success, savedCharacter = pcall(function()
             return CharacterStore:GetAsync(tostring(player.UserId))
         end)
 
+        -- 2. Decide o que fazer com base nos dados
         if success and savedCharacter then
+            -- Se tinha dados, cria o personagem
             spawnCharacter(player, savedCharacter)
         else
+            -- Se não tinha dados (ou deu erro), mostra a tela de seleção
             if not success then
                 warn("Erro ao carregar dados do jogador:", savedCharacter)
             end
             ShowSelectionEvent:FireClient(player)
         end
+
     end)
 
     CharacterChosenEvent.OnServerEvent:Connect(function(player, characterName)
@@ -171,11 +176,10 @@ function CharacterSaveSystem.Start()
     end)
 
     Players.PlayerRemoving:Connect(function(player)
-        if player.Character and player.Character:FindFirstChild("Humanoid") then
-            -- Para garantir que o nome salvo é o do modelo e não "Player.Name"
-            -- Supondo que o personagem possa ter um nome diferente do modelo original
-            local characterModelInFolder = CharactersFolder:FindFirstChild(player.Character.Name)
-            if characterModelInFolder then
+        -- Este bloco continua útil como uma segurança final para salvar os dados.
+        if player.Character then
+            local modelInFolder = CharactersFolder:FindFirstChild(player.Character.Name)
+            if modelInFolder then
                  pcall(function()
                     CharacterStore:SetAsync(tostring(player.UserId), player.Character.Name)
                 end)
