@@ -71,6 +71,7 @@ local function addCustomNameTag(character, player, subtitleText)
         subtitle.Font = Enum.Font.FredokaOne
         subtitle.TextScaled = true
         subtitle.Parent = frame
+       
     end
 end
 
