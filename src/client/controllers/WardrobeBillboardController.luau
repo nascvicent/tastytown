@@ -25,8 +25,8 @@ local function ajustarTamanho(imageButton)
 	if not imageButton or not camera then return end
 
 	local resolution = camera.ViewportSize
-	local largura = resolution.X * 0.04
-	local altura = resolution.Y * 0.7
+	local largura = resolution.X * 0.08
+	local altura = resolution.Y * 0.12
 
 	imageButton.AnchorPoint = Vector2.new(0.5, 0.5)
 	imageButton.Position = UDim2.new(0.5, 0, 0.4, 0)
