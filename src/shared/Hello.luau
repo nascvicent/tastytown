@@ -1,3 +1,2 @@
-return function()
-	print("Hello, world!")
-end
+local modules = {}
+return modules

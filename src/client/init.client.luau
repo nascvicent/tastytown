@@ -15,3 +15,8 @@ SprintController.Start()
 
 -- Chame a função Start() do seu CafeteriaController
 CafeteriaController.Start()
+
+-- LocalScript: MainClient
+
+print("MainClient iniciado.")
+

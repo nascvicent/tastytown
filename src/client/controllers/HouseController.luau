@@ -122,6 +122,22 @@ local function connectTouchEvents()
 	end)
 end
 
+function HouseController.PauseIsometricCamera()
+	print("HouseController: Pausando a câmera isométrica a pedido de outro script.")
+	RunService:UnbindFromRenderStep("IsometricCamera")
+end
+
+-- Esta função permite que outro script peça para a gente retomar o controle.
+function HouseController.ResumeIsometricCamera()
+	print("HouseController: Retomando a câmera isométrica, se necessário.")
+	-- Só retomamos o controle se o jogador ainda estiver dentro de casa.
+	if insideHouse then
+		camera.CameraType = Enum.CameraType.Scriptable
+		RunService:BindToRenderStep("IsometricCamera", Enum.RenderPriority.Camera.Value, updateIsometricCamera)
+	end
+end
+
+
 function HouseController.Start()
 	-- Adicionamos um pequeno delay aqui para dar tempo da casa do jogador ser criada no workspace
 	task.wait(1) 

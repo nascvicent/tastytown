@@ -30,6 +30,7 @@ function CharacterSelectorClient.Start()
         local newGui = guiTemplate:Clone()
         newGui.Parent = playerGui
         newGui.Enabled = true
+        newGui.CharacterFrame.Visible = true 
         
         print("Interface de Seleção de Personagem exibida para o jogador.") -- Mensagem para debug
     end)
