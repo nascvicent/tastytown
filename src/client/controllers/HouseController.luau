@@ -4,6 +4,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local EntrouNaCasa = ReplicatedStorage:WaitForChild("EntrouNaCasa")
+local EffectsFolder = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ScreenEvents")
+local ScreenEffects = require(EffectsFolder:WaitForChild("FlashScript"))
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui") -- Pegar a pasta PlayerGui é seguro
@@ -44,6 +46,8 @@ local function getCasaTrigger()
 end
 
 local function entrarNaCasa()
+	ScreenEffects.FlashBranco()
+
 	if insideHouse then return end
 	insideHouse = true
     
@@ -75,6 +79,8 @@ local function entrarNaCasa()
 end
 
 local function sairDaCasa()
+	ScreenEffects.FlashBranco()
+
 	if not insideHouse then return end
 	insideHouse = false
     
@@ -127,28 +133,65 @@ function HouseController.PauseIsometricCamera()
 	RunService:UnbindFromRenderStep("IsometricCamera")
 end
 
--- Esta função permite que outro script peça para a gente retomar o controle.
+
+
+
+
 function HouseController.ResumeIsometricCamera()
 	print("HouseController: Retomando a câmera isométrica, se necessário.")
-	-- Só retomamos o controle se o jogador ainda estiver dentro de casa.
 	if insideHouse then
-		camera.CameraType = Enum.CameraType.Scriptable
-		RunService:BindToRenderStep("IsometricCamera", Enum.RenderPriority.Camera.Value, updateIsometricCamera)
+		print("PERSONAGEM DENTRO DE CASA")
+
+		-- Força a limpeza de qualquer estado antigo da câmera
+		RunService:UnbindFromRenderStep("IsometricCamera")
+		camera.CameraType = Enum.CameraType.Custom
+		camera.CameraSubject = nil -- Remove qualquer vínculo com Humanoid
+
+		-- Espera o personagem e HumanoidRootPart existirem
+		task.spawn(function()
+			local character = player.Character
+			if not character then
+				player.CharacterAdded:Wait()
+				character = player.Character
+			end
+
+			local rootPart
+			for i = 1, 50 do
+				rootPart = character:FindFirstChild("HumanoidRootPart")
+				if rootPart then break end
+				task.wait(0.1)
+			end
+
+			if not rootPart then
+				warn("HumanoidRootPart não encontrado.")
+				return
+			end
+
+			-- Atribui a câmera scriptável e define a posição
+			camera.CameraType = Enum.CameraType.Scriptable
+			RunService:BindToRenderStep("IsometricCamera", Enum.RenderPriority.Camera.Value, updateIsometricCamera)
+			updateIsometricCamera()
+			
+		end)
 	end
 end
 
 
+
 function HouseController.Start()
-	-- Adicionamos um pequeno delay aqui para dar tempo da casa do jogador ser criada no workspace
-	task.wait(1) 
-	
+	task.wait(1)
+
 	if player.Character then
 		connectTouchEvents()
 	end
 
 	player.CharacterAdded:Connect(function()
-		task.wait(1) -- Delay para garantir que a casa já foi criada após o respawn
+		task.wait(1)
 		connectTouchEvents()
+
+		if insideHouse then
+			HouseController.ResumeIsometricCamera()
+		end
 	end)
 end
 

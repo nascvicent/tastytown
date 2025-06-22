@@ -11,6 +11,7 @@ local ShowSelectionEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild
 local CharacterChosenEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("CharacterChosen")
 local RequestSelection = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("RequestCharacterSelection")
 
+
 local respawning = {}
 Players.CharacterAutoLoads = false
 
@@ -19,7 +20,7 @@ RequestSelection.OnServerEvent:Connect(function(player)
     ShowSelectionEvent:FireClient(player)
 end)
 
-local function addCustomNameTag(character, player, subtitleText)
+local function addCustomNameTag(character, player, subtitleText, subtitleColor, animated)
     local head = character:FindFirstChild("Head")
     local root = character:FindFirstChild("HumanoidRootPart")
     local partToAttach = head or root or character.PrimaryPart
@@ -61,18 +62,32 @@ local function addCustomNameTag(character, player, subtitleText)
     nameLabel.Parent = frame
 
     if subtitleText then
-        local subtitle = Instance.new("TextLabel")
-        subtitle.Size = UDim2.new(1, 0, 0.4, 0)
-        subtitle.Position = UDim2.new(0, 0, 0.6, 0)
-        subtitle.BackgroundTransparency = 1
-        subtitle.Text = subtitleText
-        subtitle.TextColor3 = Color3.fromRGB(200, 200, 255)
-        subtitle.TextStrokeTransparency = 0.5
-        subtitle.Font = Enum.Font.FredokaOne
-        subtitle.TextScaled = true
-        subtitle.Parent = frame
-       
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, 0, 0.4, 0)
+    subtitle.Position = UDim2.new(0, 0, 0.6, 0)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = subtitleText
+    subtitle.TextColor3 = subtitleColor or Color3.fromRGB(200, 200, 255)
+    subtitle.TextStrokeTransparency = 0.5
+    subtitle.Font = Enum.Font.FredokaOne
+    subtitle.TextScaled = true
+    subtitle.Parent = frame
+
+    if animated then
+        task.spawn(function()
+            while subtitle.Parent do
+                for i = 0, 360, 5 do
+                    local r = 0.5 + 0.5 * math.sin(math.rad(i))
+                    local g = 0.5 + 0.5 * math.sin(math.rad(i + 120))
+                    local b = 0.5 + 0.5 * math.sin(math.rad(i + 240))
+                    subtitle.TextColor3 = Color3.new(r, g, b)
+                    task.wait(0.05)
+                end
+            end
+        end)
     end
+end
+
 end
 
 -- Função para spawnar personagem
@@ -141,7 +156,19 @@ local function spawnCharacter(player, characterName)
     clone.Parent = workspace
     player.Character = clone
 
-    addCustomNameTag(clone, player, "CREATOR")
+    local subtitleText, subtitleColor, animated = "Rookie", Color3.fromRGB(200, 200, 255), false
+
+if player.Name == "einsteinburro" then
+    subtitleText = "Creator"
+    subtitleColor = Color3.fromRGB(255, 255, 255)
+elseif player:GetAttribute("Premium") == true then
+    subtitleText = "Member"
+    subtitleColor = Color3.fromRGB(255, 215, 0) -- dourado
+    animated = true
+end
+
+addCustomNameTag(clone, player, subtitleText, subtitleColor, animated)
+
 
     task.delay(1, function()
         respawning[player] = nil

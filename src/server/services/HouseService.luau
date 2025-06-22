@@ -1,7 +1,7 @@
 local HouseService = {}
 
 local DataStoreService = game:GetService("DataStoreService")
-local Players = game:GetService("Players")
+
 
 local playerDataStore = DataStoreService:GetDataStore("CasaPlayerData")
 local usedIndicesStore = DataStoreService:GetDataStore("UsedIndices")

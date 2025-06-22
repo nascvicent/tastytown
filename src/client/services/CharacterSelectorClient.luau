@@ -31,6 +31,12 @@ function CharacterSelectorClient.Start()
         newGui.Parent = playerGui
         newGui.Enabled = true
         newGui.CharacterFrame.Visible = true 
+        local HudCoin = playerGui:WaitForChild("Hud"):WaitForChild("CoinGui")
+        local HudMap = playerGui:WaitForChild("Hud"):WaitForChild("MapaGUI")
+        local CasaGui = playerGui:WaitForChild("CasaGui")
+        HudCoin.Enabled = false
+        HudMap.Enabled = false
+        CasaGui.Enabled = false
         
         print("Interface de Seleção de Personagem exibida para o jogador.") -- Mensagem para debug
     end)
