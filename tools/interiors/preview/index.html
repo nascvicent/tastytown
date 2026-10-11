@@ -106,6 +106,7 @@ for (const p of data.parts) {
   mesh.applyMatrix4(m);
   mesh.castShadow = mesh.receiveShadow = p.m !== "Neon" && p.t < 0.5;
   mesh.userData.name = p.n;
+  mesh.userData.group = p.g;
   scene.add(mesh);
   meshes.push(mesh);
 }
@@ -168,7 +169,7 @@ for (const l of [...arr(data.lights)].sort((a, b) => b.r * b.b - a.r * a.b).slic
 // Bonecos de referência com a altura dos personagens do jogo (~3,7 studs), só no preview.
 // Posições em medidas de projeto (multiplicadas pela escala do build).
 const CHAR_HEIGHT = 3.7;
-const REFS = data.name === "CandyMansionInterior" ? [[12, 1, -12], [6, 1, 9]] : [[2, 0, 10], [-23.5, 0, 18], [-14, -1.2, 58.6]];
+const REFS = data.name === "CandyMansionInterior" ? [[12, 1, -12], [-3, 13, 6], [-19, 7, -6]] : [[2, 0, 10], [-23.5, 0, 18], [-14, -1.2, 58.6]];
 for (const [x, y, z] of REFS) {
   const k = data.scale || 1;
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, CHAR_HEIGHT - 1.5 - 1.6, 4, 12), new THREE.MeshStandardMaterial({ color: 0xc8743c }));
@@ -192,12 +193,14 @@ VIEWS_BY_SCENE.CineCornInterior = {
   cima: [[0, 230, 60], [0, 0, 60]],
 };
 // Casa: "iso" reproduz a câmera do HouseController (altura 25, distância 20, 315°) com o jogador no spawn
+// Vistas terminadas em "Terreo" escondem o AndarSuperior (como o FloorCutawayController no jogo)
 VIEWS_BY_SCENE.CandyMansionInterior = {
-  iso: [[12 + 14.1, 1 + 25, -12 - 14.1], [12, 6, -12]],
-  isoCama: [[-10 + 14.1, 1 + 25, 8 - 14.1], [-10, 6, 8]],
-  isoTV: [[9 + 14.1, 1 + 25, 6 - 14.1], [9, 6, 6]],
-  geral: [[46, 44, -46], [0, 2, 0]],
-  cima: [[0, 80, 0.1], [0, 0, 0]],
+  isoTerreo: [[12 + 14.1, 1 + 25, -12 - 14.1], [12, 6, -12]],
+  tvTerreo: [[4 + 14.1, 1 + 25, 8 - 14.1], [4, 6, 8]],
+  isoCama: [[-10 + 14.1, 13 + 25, 8 - 14.1], [-10, 18, 8]],
+  isoEscada: [[-16 + 14.1, 7 + 25, -8 - 14.1], [-16, 12, -8]],
+  geral: [[50, 52, -50], [0, 8, 0]],
+  geralTerreo: [[50, 52, -50], [0, 4, 0]],
 };
 const VIEWS = VIEWS_BY_SCENE[data.name] || VIEWS_BY_SCENE.CineCornInterior;
 function setView(name) {
@@ -206,7 +209,11 @@ function setView(name) {
   camera.position.set(...v[0].map((n) => n * k));
   controls.target.set(...v[1].map((n) => n * k));
   // Na vista de cima esconde os tetos
-  for (const m of meshes) if (m && m.userData.name?.startsWith("Teto")) m.visible = name !== "cima";
+  for (const m of meshes) {
+    if (!m) continue;
+    if (m.userData.name?.startsWith("Teto")) m.visible = name !== "cima";
+    if (m.userData.group === "AndarSuperior") m.visible = !name.endsWith("Terreo");
+  }
   controls.update();
   document.querySelectorAll("#ui button").forEach((b) => b.classList.toggle("on", b.dataset.v === name));
   history.replaceState(null, "", location.search + "#" + name + (showHidden ? "-debug" : ""));
@@ -219,6 +226,16 @@ for (const name of Object.keys(VIEWS)) {
   ui.appendChild(b);
 }
 window.setView = setView;
+// Captura em resolução fixa (independe do tamanho da janela) e salva via POST /snapshot
+window.snap = async (name, w = 1000, h = 700) => {
+  const old = new THREE.Vector2(); renderer.getSize(old);
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.render(scene, camera);
+  const blob = await new Promise((r) => renderer.domElement.toBlob(r, "image/png"));
+  renderer.setSize(old.x, old.y, false); camera.aspect = old.x / old.y; camera.updateProjectionMatrix();
+  const res = await fetch("/snapshot?name=" + encodeURIComponent(name), { method: "POST", body: blob });
+  return res.text();
+};
 // Para inspecionar ângulos livres pelo console: lookFrom([x,y,z],[x,y,z]) em medidas de projeto
 window.lookFrom = (pos, target) => { const k = data.scale || 1; camera.position.set(...pos.map((n) => n * k)); controls.target.set(...target.map((n) => n * k)); controls.update(); };
 

@@ -126,42 +126,59 @@ local function invisiblePart(name, size, cframe, parent)
 	return p
 end
 
+-- Direção da rua em cada lote: em vez de supor, posiciona a casa inicial (sem colocar no
+-- mundo) e vê para onde aponta a porta dela. É o lado que o mapa foi pensado para a frente.
+local lotFrontCache = {}
+local function lotFront(spawnPart)
+	if lotFrontCache[spawnPart] then return lotFrontCache[spawnPart] end
+	local probe = starterExterior:Clone()
+	probe:PivotTo(spawnPart.CFrame)
+	local door = probe:FindFirstChild("PortaEntrada", true)
+	local front = door and flat(door.Position - probe:GetBoundingBox().Position)
+	probe:Destroy()
+	front = front or flat(spawnPart.CFrame.LookVector) or Vector3.new(0, 0, -1)
+	lotFrontCache[spawnPart] = front
+	return front
+end
+
+-- Ângulo (em torno de Y) de uma direção no plano XZ: 0 = +Z, cresce em direção a +X.
+-- CFrame.Angles(0, a, 0) soma "a" a esse ângulo.
+local function heading(v)
+	return math.atan2(v.X, v.Z)
+end
+
 -- Coloca no lote uma casa que não segue o padrão do exterior inicial e cria a entrada.
--- Convenção (igual à casa inicial): a frente da casa fica no -Z do lote (LookVector).
+-- A porta da casa fica virada para a rua do lote (mesmo lado da porta da casa inicial).
 local function placeGenericExterior(exterior, spawnPart, config)
+	-- Modelos de vitrine podem ter peças soltas: ancora tudo para a casa não desabar
+	for _, part in ipairs(exterior:GetDescendants()) do
+		if part:IsA("BasePart") then part.Anchored = true end
+	end
+
 	local cf, size = exterior:GetBoundingBox()
 	local center = cf.Position
+	exterior.WorldPivot = CFrame.new(center.X, center.Y - size.Y / 2, center.Z)
+
+	-- Lado da porta no modelo original: a "Porta" do modelo ou, sem ela, o -Z girado por FrontYaw
 	local door = exterior:FindFirstChild("Porta", true)
 	local doorPos = door and (door:IsA("Model") and door:GetPivot().Position or door:IsA("BasePart") and door.Position)
+	local doorDir = (doorPos and flat(doorPos - center))
+		or (CFrame.Angles(0, math.rad(config.FrontYaw or 0), 0) * Vector3.new(0, 0, -1))
 
-	-- Giro que leva o lado da porta para o -Z. Sem "Porta" no modelo, FrontYaw diz
-	-- quantos graus o lado da porta está girado em relação ao -Z do modelo.
-	local yaw = -math.rad(config.FrontYaw or 0)
-	local d = doorPos and flat(doorPos - center)
-	if d then
-		yaw = math.atan2(d.X, -d.Z)
-	end
-
-	-- Modelos de vitrine podem ter peças soltas: ancora tudo para a casa não desabar
-	for _, d in ipairs(exterior:GetDescendants()) do
-		if d:IsA("BasePart") then d.Anchored = true end
-	end
-
-	exterior.WorldPivot = CFrame.new(center.X, center.Y - size.Y / 2, center.Z)
-	local ground = spawnPart.CFrame * CFrame.new(0, spawnPart.Size.Y / 2, 0)
-	exterior:PivotTo(ground * CFrame.Angles(0, yaw, 0))
+	local front = lotFront(spawnPart)
+	local yaw = heading(front) - heading(doorDir)
+	local groundTop = spawnPart.Position + Vector3.new(0, spawnPart.Size.Y / 2, 0)
+	exterior:PivotTo(CFrame.new(groundTop) * CFrame.Angles(0, yaw, 0))
 
 	-- Entrada: na porta do modelo ou no meio da face da frente
 	cf, size = exterior:GetBoundingBox()
 	center = cf.Position
 	local bottom = center.Y - size.Y / 2
-	local front = flat(ground.LookVector) or Vector3.new(0, 0, -1)
 	local entrancePos
 	door = exterior:FindFirstChild("Porta", true)
 	if door then
 		local p = door:IsA("Model") and door:GetPivot().Position or door.Position
 		entrancePos = Vector3.new(p.X, bottom + 3, p.Z)
-		front = flat(entrancePos - center) or front
 	else
 		-- Meia-extensão da caixa na direção da frente
 		local extent = math.abs(cf.RightVector:Dot(front)) * size.X / 2 + math.abs(cf.LookVector:Dot(front)) * size.Z / 2
@@ -172,6 +189,24 @@ local function placeGenericExterior(exterior, spawnPart, config)
 	porta.CanTouch = true
 	local frentePos = entrancePos + front * 7
 	invisiblePart("FrenteDaCasa", Vector3.new(4, 1, 2), CFrame.lookAt(frentePos, frentePos + front), exterior)
+end
+
+-- Ponto seguro no chão perto de "position" (raycast de cima para baixo, ignorando a casa
+-- e os personagens). Evita mandar o jogador para dentro do morro ou para o vazio.
+local function groundedSpot(position, facing, exclude)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local list = { exclude }
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character then table.insert(list, plr.Character) end
+	end
+	params.FilterDescendantsInstances = list
+	params.RespectCanCollide = true -- ignora peças invisíveis sem colisão (ex.: limite do lote)
+
+	local hit = workspace:Raycast(position + Vector3.new(0, 40, 0), Vector3.new(0, -120, 0), params)
+	if not hit then return nil end
+	local spot = hit.Position + Vector3.new(0, 3.5, 0)
+	return CFrame.lookAt(spot, spot + facing)
 end
 
 -- Saída do interior: capacho com prompt (substitui a PortaSaida de encostar)
@@ -194,6 +229,7 @@ local function setupExitPrompt(player, interior)
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = 9
 	prompt.RequiresLineOfSight = false
+	prompt.Style = Enum.ProximityPromptStyle.Custom -- visual do jogo (PromptController no cliente)
 	prompt.Parent = marker
 
 	prompt.Triggered:Connect(function(who)
@@ -234,6 +270,18 @@ local function buildHouse(player, state)
 	local config = HOUSES[houseName]
 	local spawnPart = state.spawnPart
 
+	-- Interior primeiro (no céu, alinhado à rotação do lote): o CharacterSaveSystem faz o
+	-- jogador nascer no primeiro que encontrar, e o interior é o lugar certo para nascer.
+	local interiorTemplate = (config.Interior and config.Interior()) or starterInterior
+	local interior = interiorTemplate:Clone()
+	interior.Name = player.Name .. "_Interior"
+	local posicao = Vector3.new(spawnPart.Position.X * MULTIPLICADOR_DISTANCIA, ALTURA_INTERIOR, spawnPart.Position.Z * MULTIPLICADOR_DISTANCIA)
+	interior:PivotTo(CFrame.new(posicao) * spawnPart.CFrame.Rotation)
+	interior.Parent = interioresFolder
+
+	local spawnInterior = interior:FindFirstChild("SpawnInterior", true) or interior:FindFirstChildWhichIsA("BasePart", true)
+	interior.PrimaryPart = spawnInterior
+
 	-- Exterior
 	local exteriorTemplate = config.Exterior() or starterExterior
 	local exterior = exteriorTemplate:Clone()
@@ -250,17 +298,6 @@ local function buildHouse(player, state)
 	exterior:SetAttribute("Casa", houseName)
 	exterior.Parent = casasFolder
 
-	-- Interior (no céu, alinhado à rotação do lote)
-	local interiorTemplate = (config.Interior and config.Interior()) or starterInterior
-	local interior = interiorTemplate:Clone()
-	interior.Name = player.Name .. "_Interior"
-	local posicao = Vector3.new(spawnPart.Position.X * MULTIPLICADOR_DISTANCIA, ALTURA_INTERIOR, spawnPart.Position.Z * MULTIPLICADOR_DISTANCIA)
-	interior:PivotTo(CFrame.new(posicao) * spawnPart.CFrame.Rotation)
-	interior.Parent = interioresFolder
-
-	local spawnInterior = interior:FindFirstChild("SpawnInterior", true) or interior:FindFirstChildWhichIsA("BasePart", true)
-	interior.PrimaryPart = spawnInterior
-
 	local portaEntrada = exterior:FindFirstChild("PortaEntrada", true)
 	local frenteDaCasa = exterior:FindFirstChild("FrenteDaCasa", true)
 	if not (portaEntrada and frenteDaCasa and spawnInterior) then
@@ -271,7 +308,13 @@ local function buildHouse(player, state)
 	state.spawnInterior = spawnInterior and (spawnInterior.CFrame + Vector3.new(0, 3, 0))
 	state.focus = spawnInterior
 	if frenteDaCasa and portaEntrada then
-		state.exitTarget = frenteDaCasa.CFrame + portaEntrada.CFrame.LookVector * 5
+		local outward = flat(portaEntrada.CFrame.LookVector) or Vector3.new(0, 0, -1)
+		local wanted = frenteDaCasa.CFrame + portaEntrada.CFrame.LookVector * 5
+		-- Confirma que há chão ali; senão tenta mais perto da porta e, por fim, o centro do lote
+		state.exitTarget = groundedSpot(wanted.Position, outward, exterior)
+			or groundedSpot(frenteDaCasa.Position, outward, exterior)
+			or groundedSpot(spawnPart.Position, outward, exterior)
+			or wanted
 	end
 
 	if portaEntrada then

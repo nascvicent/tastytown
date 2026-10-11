@@ -41,8 +41,12 @@ local function dump(model)
 			for i, v in ipairs(cf) do cf[i] = round(v) end
 			local shape = "Block"
 			if inst:IsA("Part") then shape = inst.Shape.Name end
+			-- Grupo de topo (filho direto do modelo), ex.: "AndarSuperior"
+			local group = inst
+			while group.Parent and group.Parent ~= model do group = group.Parent end
 			table.insert(parts, {
 				n = inst.Name,
+				g = group.Name,
 				c = inst.ClassName,
 				sh = shape,
 				s = { round(inst.Size.X), round(inst.Size.Y), round(inst.Size.Z) },

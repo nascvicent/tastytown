@@ -6,3 +6,4 @@
 /*.rbxl.lock
 # Gerado por tools/interiors/build.luau
 /tools/interiors/preview/scene.js
+/tools/interiors/preview/snapshots/

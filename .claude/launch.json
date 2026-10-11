@@ -4,7 +4,10 @@
     {
       "name": "interiors-preview",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "tools/interiors/preview"],
+      "runtimeArgs": [
+        "tools/interiors/preview/serve.py",
+        "8765"
+      ],
       "port": 8765
     }
   ]
