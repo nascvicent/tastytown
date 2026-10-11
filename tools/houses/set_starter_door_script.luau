@@ -1,5 +1,5 @@
 --[[
-	Atualiza o script da porta da casa inicial (ServerStorage/CasaExterior.rbxmx)
+	Atualiza o script da porta da casa inicial (ServerStorage/CasaExterior.rbxm)
 	para a versão polida das portas do jogo: fecha com o FecharPortaEvent ao teleportar e
 	acende a PortaEntrada (Neon) enquanto a porta está aberta.
 
@@ -9,7 +9,7 @@
 local roblox = require("@lune/roblox")
 local fs = require("@lune/fs")
 
-local PATH = "src/ServerStorage/CasaExterior.rbxmx"
+local PATH = "src/ServerStorage/CasaExterior.rbxm"
 
 local SOURCE = [==[
 local TweenService = game:GetService("TweenService")
@@ -86,5 +86,5 @@ local script = model:FindFirstChild("Script")
 assert(script and script:IsA("Script"), "CasaExterior sem Script")
 script.Source = SOURCE
 
-fs.writeFile(PATH, roblox.serializeModel({ model }, true))
+fs.writeFile(PATH, roblox.serializeModel({ model }, false))
 print("script da porta atualizado em " .. PATH)

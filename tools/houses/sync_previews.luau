@@ -10,7 +10,7 @@ local fs = require("@lune/fs")
 
 -- [nome do modelo de prévia] = arquivo de origem
 local SOURCES = {
-	CasaDeBiscoito = "src/ServerStorage/CasaExterior.rbxmx",
+	CasaDeBiscoito = "src/ServerStorage/CasaExterior.rbxm",
 }
 
 local TARGET = "src/ReplicatedStorage/ShopModels/ModelosCasas.rbxmx"
