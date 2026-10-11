@@ -103,6 +103,28 @@ ShowSelectionEvent.OnClientEvent:Connect(function()
 	FecharLoadingScreen(false)
 end)
 
+-- Timeout: se o servidor perdeu o jogador (ex.: PlayerAdded não disparou),
+-- o loading não pode ficar na tela para sempre.
+local LOADING_TIMEOUT = 25
+task.delay(LOADING_TIMEOUT, function()
+	if loadingClosed then return end
+
+	local char = player.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		warn("Loading: PlayerLoaded não chegou, mas o personagem existe. Fechando.")
+		FecharLoadingScreen(true)
+		return
+	end
+
+	warn("Loading: nenhum evento do servidor. Pedindo a seleção de personagem.")
+	local requestSelection = EventsFolder:WaitForChild("SelectionEvents"):WaitForChild("RequestCharacterSelection")
+	requestSelection:FireServer()
+
+	-- Se nem a seleção chegar, fecha mesmo assim para não esconder a UI de fallback
+	task.wait(5)
+	FecharLoadingScreen(false)
+end)
+
 -- ==========================================================
 -- ⭐ CARREGAMENTO DE ASSETS (OTIMIZADO)
 -- ==========================================================

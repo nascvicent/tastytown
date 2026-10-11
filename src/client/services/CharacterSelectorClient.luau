@@ -8,7 +8,18 @@ local ContentProvider = game:GetService("ContentProvider") -- Serviço para carr
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local remote = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("ShowCharacterSelection")
+local selectionEvents = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents")
+local remote = selectionEvents:WaitForChild("ShowCharacterSelection")
+local requestSelection = selectionEvents:WaitForChild("RequestCharacterSelection")
+
+-- A ScreenGui continua Enabled depois do "Jogar" (o GuiController só esconde o CharacterFrame),
+-- então a seleção só está aberta se o frame também estiver visível.
+local function IsSelectionOpen()
+	local gui = playerGui:FindFirstChild("CharacterSelectionGui")
+	if not (gui and gui.Enabled) then return false end
+	local frame = gui:FindFirstChild("CharacterFrame")
+	return frame == nil or frame.Visible
+end
 
 
 local function Unfreeze()
@@ -70,8 +81,8 @@ function CharacterSelectorClient.Start()
 		if not newGui then
 			warn("ERRO CRÍTICO: Não foi possível carregar a GUI (Internet muito lenta ou asset faltando).")
 			-- Tentativa de emergência: Tentar novamente em 2 segundos
-			task.delay(2, function() 
-				remote:FireServer("RequestUI") -- Opcional: Pedir ao server de novo
+			task.delay(2, function()
+				requestSelection:FireServer() -- Pede ao server para mandar a seleção de novo
 			end)
 			return
 		end
@@ -94,25 +105,36 @@ function CharacterSelectorClient.Start()
 	-- [SEGURANÇA 2 - ANTI-LIMBO]
 	-- Se o jogador entrou e não tem personagem, mas o evento não disparou em 3 segundos,
 	-- pode ser que ele tenha perdido o evento por causa da internet lenta.
+	-- Checa a cada 10s. Só age após 2 checagens seguidas sem nada (o spawn pode levar ~10s
+	-- esperando a casa): pede a seleção ao servidor (o que também fecha o loading) e, se
+	-- mesmo assim nada chegar, abre a UI localmente.
 	task.spawn(function()
-		task.wait(20) -- Espera um tempo prudente
+		local tentativas = 0
+		while player.Parent do
+			task.wait(10)
 
-		-- Verifica: Não tem personagem? A GUI não está aberta?
-		local hasCharacter = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		local isGuiOpen = playerGui:FindFirstChild("CharacterSelectionGui") and playerGui.CharacterSelectionGui.Enabled
-
-		if not hasCharacter and not isGuiOpen then
-			warn("ALERTA DE LIMBO: O evento do servidor parece ter sido perdido. Forçando abertura da UI.")
-			ShowSelectionScreen()
+			local hasCharacter = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			if hasCharacter or IsSelectionOpen() then
+				tentativas = 0
+			else
+				tentativas += 1
+				if tentativas == 1 then
+					-- ainda pode ser um spawn em andamento; espera a próxima checagem
+				elseif tentativas == 2 then
+					warn("ALERTA DE LIMBO: sem personagem e sem seleção. Pedindo a seleção ao servidor.")
+					requestSelection:FireServer()
+				else
+					warn("ALERTA DE LIMBO: servidor não respondeu. Forçando abertura da UI.")
+					ShowSelectionScreen()
+				end
+			end
 		end
 	end)
 
 	-- 3. O RETORNO (Quando o personagem nasce)
 	player.CharacterAdded:Connect(function()
-		local selecaoAberta = playerGui:FindFirstChild("CharacterSelectionGui")
-
 		-- Se a seleção NÃO está aberta, o player DEVE poder andar
-		if not (selecaoAberta and selecaoAberta.Enabled) then
+		if not IsSelectionOpen() then
 			Unfreeze() -- Garante que ele não nasça travado
 			task.wait(0.5)
 			ToggleHuds(true)

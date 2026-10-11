@@ -18,6 +18,7 @@ local RequestSelection = ReplicatedStorage:WaitForChild("Events"):WaitForChild("
 local PlayerLoadedEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ScreenEvents"):WaitForChild("PlayerLoaded")
 
 local respawning = {}
+local escolhaPendente = {} -- escolha feita enquanto um spawn ainda estava em andamento
 Players.CharacterAutoLoads = false
 
 RequestSelection.OnServerEvent:Connect(function(player)
@@ -48,7 +49,12 @@ local function encontrarCasaInterior(player)
 end
 
 local function spawnCharacter(player, characterName)
-	if respawning[player] then return end
+	if not player.Parent then return end
+	if respawning[player] then
+		-- Em vez de descartar, guarda a escolha e aplica quando o spawn atual terminar
+		escolhaPendente[player] = characterName
+		return
+	end
 	respawning[player] = true
 
 	local oldChar = player.Character
@@ -72,8 +78,10 @@ local function spawnCharacter(player, characterName)
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 		humanoid.Died:Connect(function()
 			task.wait(3)
-			local success, saved = pcall(function() return CharacterStore:GetAsync(tostring(player.UserId)) end)
-			spawnCharacter(player, saved or "Default")
+			-- Renasce com o mesmo personagem (sem consultar o DataStore a cada morte)
+			if player.Parent and player.Character == clone then
+				spawnCharacter(player, characterName)
+			end
 		end)
 	end
 
@@ -97,9 +105,19 @@ local function spawnCharacter(player, characterName)
 		if not (casaExterior or casaInterior) then task.wait(0.5) end
 	until (casaExterior or casaInterior) or (tick() - start > 10)
 
+	-- O jogador pode ter saído durante a espera pela casa
+	if not player.Parent then
+		clone:Destroy()
+		respawning[player] = nil
+		escolhaPendente[player] = nil
+		return
+	end
+
+	local nasceuDentroDeCasa = false
 	if casaInterior and casaInterior:FindFirstChild("SpawnInterior") then
 		player:RequestStreamAroundAsync(casaInterior.SpawnInterior.Position)
 		spawnLocation = casaInterior.SpawnInterior.CFrame + Vector3.new(0, 3, 0)
+		nasceuDentroDeCasa = true
 	elseif casaExterior then
 		if casaExterior.PrimaryPart then player:RequestStreamAroundAsync(casaExterior.PrimaryPart.Position) end
 		local spawnPoint = casaExterior:FindFirstChild("PortaEntrada") or casaExterior.PrimaryPart
@@ -107,6 +125,9 @@ local function spawnCharacter(player, characterName)
 	else
 		if spawnPadrao then player:RequestStreamAroundAsync(spawnPadrao.Position) end
 	end
+
+	-- Mantém o handshake de câmera do HouseService coerente com onde o jogador nasceu
+	clone:SetAttribute("InsideHouse", nasceuDentroDeCasa)
 
 	clone:PivotTo(spawnLocation)
 	clone.Parent = workspace
@@ -120,33 +141,52 @@ local function spawnCharacter(player, characterName)
 	NameTagService.ApplyTag(player, clone)
 	-- =======================
 
-	task.delay(1, function() respawning[player] = nil end)
+	task.delay(1, function()
+		respawning[player] = nil
+		local pendente = escolhaPendente[player]
+		escolhaPendente[player] = nil
+		if pendente and pendente ~= characterName then
+			spawnCharacter(player, pendente)
+		end
+	end)
 	PlayerLoadedEvent:FireClient(player)
 end
 
-function CharacterSaveSystem.Start()
-	Players.PlayerAdded:Connect(function(player)
-		NameTagService.LoadTag(player)
-		local success, savedCharacter = pcall(function()
-			return CharacterStore:GetAsync(tostring(player.UserId))
-		end)
+local jogadoresIniciados = {}
 
-		if success and savedCharacter and typeof(savedCharacter) == "string" then
-			print(player.Name .. " tem dados salvos: " .. savedCharacter)
-			spawnCharacter(player, savedCharacter)
-		else
-			if not success then
-				warn("Falha ao carregar DataStore para " .. player.Name)
-			elseif not savedCharacter then
-				print(player.Name .. " é novo ou teve dados apagados.")
-			end
+local function onPlayerAdded(player)
+	if jogadoresIniciados[player] then return end
+	jogadoresIniciados[player] = true
 
-			ShowSelectionEvent:FireClient(player)
-		end
+	NameTagService.LoadTag(player)
+	local success, savedCharacter = pcall(function()
+		return CharacterStore:GetAsync(tostring(player.UserId))
 	end)
 
+	if success and savedCharacter and typeof(savedCharacter) == "string" then
+		print(player.Name .. " tem dados salvos: " .. savedCharacter)
+		spawnCharacter(player, savedCharacter)
+	else
+		if not success then
+			warn("Falha ao carregar DataStore para " .. player.Name)
+		elseif not savedCharacter then
+			print(player.Name .. " é novo ou teve dados apagados.")
+		end
+
+		ShowSelectionEvent:FireClient(player)
+	end
+end
+
+function CharacterSaveSystem.Start()
+	Players.PlayerAdded:Connect(onPlayerAdded)
+
+	-- Jogadores que entraram antes do PlayerAdded ser conectado (comum no Play do Studio)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(onPlayerAdded, player)
+	end
+
 	CharacterChosenEvent.OnServerEvent:Connect(function(player, characterName)
-		if CharactersFolder:FindFirstChild(characterName) then
+		if typeof(characterName) == "string" and CharactersFolder:FindFirstChild(characterName) then
 			pcall(function()
 				CharacterStore:SetAsync(tostring(player.UserId), characterName)
 			end)
@@ -157,6 +197,10 @@ function CharacterSaveSystem.Start()
 	end)
 
 	Players.PlayerRemoving:Connect(function(player)
+		jogadoresIniciados[player] = nil
+		respawning[player] = nil
+		escolhaPendente[player] = nil
+
 		local character = player.Character
 		if character then
 			NameTagService.SaveTag(player)

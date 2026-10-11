@@ -1,5 +1,4 @@
 local Players = game:GetService("Players")
-Players.CharacterAutoLoads = true
 
 local HouseService = require(script.services.HouseService)
 local CharacterSaveSystem = require(script.services.CharacterSaveSystem)
@@ -24,3 +23,8 @@ InventoryService.Start()
 -- Conexões pendentes
 Players.PlayerAdded:Connect(HouseService.onPlayerAdded)
 Players.PlayerRemoving:Connect(HouseService.onPlayerRemoving)
+
+-- Jogadores que entraram antes do PlayerAdded ser conectado (comum no Play do Studio)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(HouseService.onPlayerAdded, player)
+end
