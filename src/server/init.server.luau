@@ -7,6 +7,7 @@ local ShopService = require(script.services.ShopService)
 local MusicZoneController = require(script.controllers.MusicZoneController)
 local RacePortalService = require(script.services.RacePortalService)
 local MapService = require(script.services.MapService)
+local InteriorService = require(script.services.InteriorService)
 
 -- Requisitando o novo módulo de inventário
 local InventoryService = require(script.services.InventoryService) -- Ajuste o caminho conforme necessário
@@ -14,6 +15,7 @@ local InventoryService = require(script.services.InventoryService) -- Ajuste o c
 -- Inicialização
 CharacterSaveSystem.Start()
 MapService.Start()
+InteriorService.Start()
 CoinManager.start()
 ShopService.Start()
 MusicZoneController.Start()

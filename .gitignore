@@ -4,3 +4,5 @@
 # Roblox Studio lock files
 /*.rbxlx.lock
 /*.rbxl.lock
+# Gerado por tools/interiors/build.luau
+/tools/interiors/preview/scene.js
