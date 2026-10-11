@@ -155,6 +155,13 @@ local function placeGenericExterior(exterior, spawnPart, config)
 		if part:IsA("BasePart") then part.Anchored = true end
 	end
 
+	-- Pivô limpo, sem rotação: modelos importados (ex.: a Candy Mansion) trazem um
+	-- PivotOffset inclinado na PrimaryPart (90° em X); usar esse pivô no PivotTo
+	-- tombava a casa de lado. Sem PrimaryPart, o WorldPivot é só do modelo.
+	exterior.PrimaryPart = nil
+	exterior.WorldPivot = CFrame.new(exterior:GetBoundingBox().Position)
+
+	-- Agora a caixa é medida nos eixos do mundo (Y = altura de verdade)
 	local cf, size = exterior:GetBoundingBox()
 	local center = cf.Position
 	exterior.WorldPivot = CFrame.new(center.X, center.Y - size.Y / 2, center.Z)
