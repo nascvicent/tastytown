@@ -1,199 +1,172 @@
 --[[
-	ModuleScript: CoinManager
-	Responsável por gerenciar os dados das moedas dos jogadores de forma segura e robusta.
-	Inclui:
-	- Carregamento e salvamento com sistema de retentativas (retry).
-	- Salvamento automático (autosave) para prevenir perda de dados.
-	- Salvamento final ao desligar o servidor (BindToClose).
-	- Cache de dados no servidor para performance e segurança.
+	ModuleScript: CoinManager (Refatorado e Seguro)
 --]]
 
--- Serviços
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
 
--- Módulo
 local CoinManager = {}
 
---============================================================================--
---                          CONFIGURAÇÕES                                    --
---============================================================================--
-
--- Usar um nome único evita conflitos com outros DataStores.
+-- CONFIGURAÇÕES
 local coinDataStore = DataStoreService:GetDataStore("PlayerCoins_V3")
+local sessionData = {} -- Cache (Fonte da verdade)
 
--- Cache para guardar os dados dos jogadores enquanto estão na sessão.
--- A "fonte da verdade" não será o IntValue, mas sim os dados neste cache.
-local sessionData = {}
-
--- Configurações de segurança
-local AUTOSAVE_INTERVAL = 60 -- Salva a cada 60 segundos.
-local MAX_RETRIES = 3 -- Tenta salvar até 3 vezes em caso de erro.
-local RETRY_DELAY = 2 -- Espera 2 segundos entre as tentativas.
-
+local AUTOSAVE_INTERVAL = 60
+local MAX_RETRIES = 3
 
 --============================================================================--
---                          FUNÇÕES INTERNAS (PRIVADAS)                      --
+--                              FUNÇÕES INTERNAS                              --
 --============================================================================--
 
--- Função para salvar dados com sistema de retentativas.
-local function saveData(userId, data)
-	for i = 1, MAX_RETRIES do
-		local success, err = pcall(function()
-			coinDataStore:SetAsync(userId, data)
+-- Usa UpdateAsync para garantir integridade se houver conflito de servidores
+local function saveData(userId, currentValue)
+	local success, err = pcall(function()
+		coinDataStore:UpdateAsync(userId, function(oldValue)
+			-- Lógica de verificação (opcional):
+			-- Se oldValue for muito maior que currentValue, algo estranho aconteceu.
+			-- Por enquanto, apenas retornamos o valor novo.
+			return currentValue
 		end)
+	end)
 
-		if success then
-			print(`[DataStore] Dados salvos para userId {userId} na tentativa {i}.`)
-			return true
-		else
-			warn(`[DataStore] Falha ao salvar para userId {userId} (tentativa {i}/{MAX_RETRIES}): {err}`)
-			if i < MAX_RETRIES then
-				task.wait(RETRY_DELAY)
-			end
-		end
+	if success then
+		print(`[CoinManager] Salvo: {userId} -> {currentValue}`)
+	else
+		warn(`[CoinManager] Erro ao salvar {userId}: {err}`)
 	end
-	
-	warn(`[DataStore] ATENÇÃO: Todas as {MAX_RETRIES} tentativas de salvar para {userId} falharam.`)
-	return false
+	return success
 end
 
-
--- Função executada quando um jogador entra no jogo.
 local function onPlayerAdded(player)
 	local userId = player.UserId
-	
-	-- Cria a estrutura de leaderstats
+
+	-- Leaderstats (apenas visual)
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 	leaderstats.Parent = player
 
 	local coins = Instance.new("IntValue")
-	coins.Name = "Coins"
-	coins.Value = 0 -- Começa em 0 enquanto carrega
+	coins.Name = "Donuts"
 	coins.Parent = leaderstats
 
-	-- Carrega os dados do DataStore
-	local data
-	local success, err = pcall(function()
-		data = coinDataStore:GetAsync(userId)
-	end)
+	-- Tenta carregar com retries
+	local data = nil
+	local success = false
+	local err = nil
+
+	for i = 1, MAX_RETRIES do
+		success, err = pcall(function()
+			data = coinDataStore:GetAsync(userId)
+		end)
+		if success then break end
+		task.wait(2)
+	end
 
 	if success then
-		if data and type(data) == "number" then
-			-- Dados carregados com sucesso, atualiza o cache e o leaderstats
+		if data then
 			sessionData[userId] = data
 			coins.Value = data
-			print(`Moedas de {player.Name} carregadas: {data}`)
+			print(`[CoinManager] Carregado para {player.Name}: {data}`)
 		else
-			-- Novo jogador ou dados corrompidos
+			-- Retornou nil = Jogador realmente novo
 			sessionData[userId] = 0
-			print(`Novo jogador {player.Name}, iniciando com 0 moedas.`)
+			coins.Value = 0
+			print(`[CoinManager] Novo jogador: {player.Name}`)
 		end
-	else
-		-- Falha na API, inicia com 0 como segurança
-		sessionData[userId] = 0
-		warn(`Erro ao carregar dados para {player.Name}: {err}. Iniciando com 0.`)
-	end
-	
-	-- Inicia o salvamento automático (autosave) para este jogador
-	coroutine.wrap(function()
-		while player.Parent do -- Enquanto o jogador estiver no jogo
-			task.wait(AUTOSAVE_INTERVAL)
-			-- Salva apenas se os dados estiverem no cache (jogador ainda ativo)
-			if sessionData[userId] then
+
+		-- Só inicia o loop de autosave se os dados carregaram corretamente!
+		task.spawn(function()
+			while player.Parent and sessionData[userId] do
+				task.wait(AUTOSAVE_INTERVAL)
 				saveData(userId, sessionData[userId])
 			end
-		end
-	end)()
+		end)
+
+	else
+		-- === PROTEÇÃO CONTRA PERDA DE DADOS ===
+		-- Se falhou todas as tentativas, kicka o jogador.
+		-- Nunca inicie com 0 se o erro for de conexão.
+		warn(`[CoinManager] CRÍTICO: Falha ao carregar dados de {player.Name}: {err}`)
+		player:Kick("Houve uma falha ao carregar seus dados. Por favor, reconecte para evitar perda de progresso.")
+	end
 end
 
--- Função para salvar os dados quando um jogador sai.
 local function onPlayerRemoving(player)
 	local userId = player.UserId
-
-	-- Se o jogador tiver dados na sessão, salva-os uma última vez.
 	if sessionData[userId] then
 		saveData(userId, sessionData[userId])
-		-- Limpa os dados do cache para liberar memória.
-		sessionData[userId] = nil
+		sessionData[userId] = nil -- Limpa cache
 	end
 end
 
 --============================================================================--
---                         FUNÇÕES PÚBLICAS                                --
+--                              FUNÇÕES PÚBLICAS                              --
 --============================================================================--
 
--- Adiciona moedas. Agora, modifica o cache primeiro.
 function CoinManager.addCoins(player, amount)
-	if not (player and amount and type(amount) == "number" and amount > 0) then
-		return false, "Argumentos inválidos."
-	end
+	if not player or not sessionData[player.UserId] then return end
 
-	local userId = player.UserId
-	if sessionData[userId] then
-		sessionData[userId] = sessionData[userId] + amount
-		player.leaderstats.Coins.Value = sessionData[userId] -- Atualiza o visual
+	sessionData[player.UserId] += amount
+
+	-- Atualiza visual
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats and leaderstats:FindFirstChild("Donuts") then
+		leaderstats.Coins.Value = sessionData[player.UserId]
+	end
+end
+
+function CoinManager.removeCoins(player, amount)
+	if not player or not sessionData[player.UserId] then return false end
+
+	if sessionData[player.UserId] >= amount then
+		sessionData[player.UserId] -= amount
+
+		-- Atualiza visual
+		local leaderstats = player:FindFirstChild("leaderstats")
+		if leaderstats and leaderstats:FindFirstChild("Donuts") then
+			leaderstats.Donuts.Value = sessionData[player.UserId]
+		end
 		return true
 	end
-	return false, "Jogador não encontrado na sessão."
+	return false
 end
 
--- Remove moedas. É bom ter uma função separada para validação.
-function CoinManager.removeCoins(player, amount)
-	if not (player and amount and type(amount) == "number" and amount > 0) then
-		return false, "Argumentos inválidos."
-	end
-	
-	local userId = player.UserId
-	if sessionData[userId] then
-		if sessionData[userId] >= amount then
-			sessionData[userId] = sessionData[userId] - amount
-			player.leaderstats.Coins.Value = sessionData[userId] -- Atualiza o visual
-			return true
-		else
-			return false, "Moedas insuficientes."
-		end
-	end
-	return false, "Jogador não encontrado na sessão."
-end
-
--- Obtém o valor real de moedas do cache.
 function CoinManager.getCoins(player)
-	if player then
-		return sessionData[player.UserId]
-	end
-	return nil
+	return sessionData[player.UserId] or 0
 end
 
-
--- Função para iniciar o sistema
 function CoinManager.start()
-	-- Conecta as funções aos eventos dos jogadores
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
 
-	-- Para jogadores que já podem estar no servidor quando o script rodar
-	for _, player in ipairs(Players:GetPlayers()) do
-		coroutine.wrap(onPlayerAdded)(player)
+	for _, p in ipairs(Players:GetPlayers()) do
+		task.spawn(onPlayerAdded, p)
 	end
-	
-	-- Salva os dados de todos antes do servidor desligar
+
 	game:BindToClose(function()
-		if RunService:IsStudio() then
-			-- BindToClose pode ser instável no Studio. O autosave é nossa principal defesa aqui.
-			task.wait(2)
-			return
-		end
-		
-		print("[BindToClose] Servidor desligando. Salvando dados de todos os jogadores...")
+		if RunService:IsStudio() then task.wait(1) return end
+
+		-- Salva dados usando task.spawn para ser mais rápido
+		-- BindToClose tem limite de 30s. Serializar (um por um) pode estourar o tempo.
+		local thread = coroutine.running()
+		local pending = 0
+
 		for userId, data in pairs(sessionData) do
-			saveData(userId, data)
+			pending += 1
+			task.spawn(function()
+				saveData(userId, data)
+				pending -= 1
+				if pending == 0 then
+					coroutine.resume(thread)
+				end
+			end)
+		end
+
+		if pending > 0 then
+			coroutine.yield() -- Espera todos salvarem
 		end
 	end)
-	
-	print("Módulo CoinManager (Versão Segura) iniciado.")
 end
 
 return CoinManager

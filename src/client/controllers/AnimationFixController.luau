@@ -7,13 +7,13 @@ local player = Players.LocalPlayer
 local function fixCharacterAnimation(character)
     if not character then return end
     
-    
+    -- Espera o script "Animate" aparecer dentro do personagem
     local animateScript = character:WaitForChild("Animate", 5) 
     
     if animateScript and animateScript:IsA("LocalScript") then
-       
+        -- Desativa e reativa o script para garantir que ele execute corretamente
         animateScript.Disabled = true
-        task.wait() 
+        task.wait() -- Espera um frame para a mudança ser registrada
         animateScript.Disabled = false
     end
 end

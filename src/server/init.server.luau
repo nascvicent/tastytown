@@ -1,13 +1,26 @@
 local Players = game:GetService("Players")
-
 Players.CharacterAutoLoads = true
+
 local HouseService = require(script.services.HouseService)
 local CharacterSaveSystem = require(script.services.CharacterSaveSystem)
 local CoinManager = require(script.controllers.CoinManager)
+local ShopService = require(script.services.ShopService)
+local MusicZoneController = require(script.controllers.MusicZoneController)
+local RacePortalService = require(script.services.RacePortalService)
 
+-- Requisitando o novo módulo de inventário
+local InventoryService = require(script.services.InventoryService) -- Ajuste o caminho conforme necessário
 
+-- Inicialização
 CharacterSaveSystem.Start()
 CoinManager.start()
+ShopService.Start()
+MusicZoneController.Start()
+RacePortalService.Start()
 
+-- Inicializando o sistema de Inventário
+InventoryService.Start() 
+
+-- Conexões pendentes
 Players.PlayerAdded:Connect(HouseService.onPlayerAdded)
 Players.PlayerRemoving:Connect(HouseService.onPlayerRemoving)

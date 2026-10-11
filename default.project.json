@@ -2,27 +2,59 @@
   "name": "tastytown",
   "tree": {
     "$className": "DataModel",
-
+    "ReplicatedFirst": {
+      "$path": "src/ReplicatedFirst"
+    },
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
-      }
+      },
+      "$path": "src/ReplicatedStorage"
     },
-
     "ServerScriptService": {
       "Server": {
         "$path": "src/server"
-      }
+      },
+      "$path": "src/ServerScriptService"
     },
-
+    "ServerStorage": {
+      "$ignoreUnknownInstances": true,
+      "$path": "src/ServerStorage"
+    },
+    "StarterGui": {
+      "$properties": {
+        "ScreenOrientation": "Sensor"
+      },
+      "$path": "src/StarterGui"
+    },
     "StarterPlayer": {
+      "StarterCharacterScripts": {
+        "$path": "src/StarterCharacterScripts"
+      },
       "StarterPlayerScripts": {
         "Client": {
           "$path": "src/client"
-        }
+        },
+        "$path": "src/StarterPlayerScripts"
+      },
+      "$properties": {
+        "CameraMaxZoomDistance": 30.0,
+        "CharacterUseJumpPower": false
       }
     }
-
-   
+  },
+  "syncbackRules": {
+    "ignoreTrees": [
+      "ServerStorage/R3dTuxedo",
+      "ServerStorage/RBX_ANIMSAVES",
+      "ServerStorage/Cars",
+      "ServerStorage/Folder"
+    ],
+    "ignorePaths": [
+      "**/.gitkeep"
+    ],
+    "ignoreProperties": {
+      "Instance": ["SerializedOverrides", "IconTint"]
+    }
   }
 }

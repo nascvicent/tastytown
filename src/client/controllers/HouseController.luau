@@ -1,198 +1,222 @@
 local HouseController = {}
 
+-- === SERVIÇOS ===
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local EntrouNaCasa = ReplicatedStorage:WaitForChild("EntrouNaCasa")
-local EffectsFolder = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ScreenEvents")
-local ScreenEffects = require(EffectsFolder:WaitForChild("FlashScript"))
 
+-- === EVENTOS ===
+local EventsFolder = ReplicatedStorage:WaitForChild("Events")
+local cameraEvent = EventsFolder:WaitForChild("SetCameraMode")
+local cameraSyncEvent = EventsFolder:WaitForChild("CameraSyncRequest")
+
+-- === REFERÊNCIAS LOCAIS ===
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui") -- Pegar a pasta PlayerGui é seguro
+local playerGui = player:WaitForChild("PlayerGui")
 local camera = workspace.CurrentCamera
+
 local insideHouse = false
-
--- MUDANÇA 1: A variável agora começa como nula. Não tentamos pegar a GUI aqui.
 local CasaGUI = nil
+local ALTURA_INTERIOR_MINIMA = 4000
+local currentHouseRotationY = 0
 
--- MUDANÇA 2: Criamos a nossa função segura para pegar a GUI, igual fizemos antes.
+-- === GUI ===
 local function getCasaGui()
-    -- Se ainda não temos a referência da GUI ou se ela foi destruída...
-    if not CasaGUI or not CasaGUI.Parent then
-        -- ...procuramos por ela com FindFirstChild, que não trava o script.
-        CasaGUI = playerGui:FindFirstChild("CasaGui")
-    end
-    return CasaGUI
-end
-
-local function updateIsometricCamera()
-	if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-		local rp = player.Character.HumanoidRootPart
-		local cameraDistance = 20
-		local height = 25
-
-		local angleY = math.rad(315)
-		local offsetDirection = CFrame.Angles(0, angleY, 0) * Vector3.new(0, height, -cameraDistance)
-
-		local cameraPosition = rp.Position + offsetDirection
-		camera.CFrame = CFrame.new(cameraPosition, rp.Position + Vector3.new(0, 5, 0))
+	if not CasaGUI or not CasaGUI.Parent then
+		CasaGUI = playerGui:FindFirstChild("CasaGui")
 	end
+	return CasaGUI
 end
 
-local function getCasaTrigger()
-	local nomeCasa = player.Name .. "_Casa"
-	local casaModel = workspace:WaitForChild("Casas"):WaitForChild(nomeCasa)
-	return casaModel:WaitForChild("CasaTrigger")
+-- === SEGURANÇA (RAYCAST) ===
+local function buscarAnguloDoChao()
+	local char = player.Character
+	if not char then return nil end
+
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return nil end
+
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = { char }
+	params.FilterType = Enum.RaycastFilterType.Exclude
+
+	local rayResult = workspace:Raycast(root.Position, Vector3.new(0, -200, 0), params)
+	if rayResult and rayResult.Instance then
+		local _, ry, _ = rayResult.Instance.CFrame:ToOrientation()
+		return ry
+	end
+
+	return nil
 end
 
-local function entrarNaCasa()
-	ScreenEffects.FlashBranco()
+local function forcarDescobertaDeAngulo()
+	task.spawn(function()
+		for i = 1, 20 do
+			if not insideHouse then break end
 
-	if insideHouse then return end
-	insideHouse = true
-    
-    -- MUDANÇA 3: Usamos nossa função segura aqui.
-    local gui = getCasaGui()
-    if not gui then
-        warn("CasaGui não foi encontrada ao tentar entrar na casa.")
-        return 
-    end
+			local anguloAchado = buscarAnguloDoChao()
+			if anguloAchado then
+				currentHouseRotationY = anguloAchado
+				break
+			end
 
-	gui.Enabled = true
-
-	local botao = gui:FindFirstChild("BotaoArmarioGui")
-	if botao then
-		botao.Enabled = true
-		botao.Active = true
-
-		local image = botao:FindFirstChild("ImageButton")
-		if image then
-			image.Visible = true
-			image.Active = true
+			task.wait(0.25)
 		end
+	end)
+end
+
+-- === CÂMERA ISOMÉTRICA ===
+local function updateIsometricCamera()
+	local char = player.Character
+	local rp = char and char:FindFirstChild("HumanoidRootPart")
+	if not rp then return end
+
+	local cameraDistance = 20
+	local height = 25
+
+	local houseCFrame = CFrame.Angles(0, currentHouseRotationY, 0)
+	local isometricRotation = CFrame.Angles(0, math.rad(315), 0)
+
+	local finalOffset =
+		(houseCFrame * isometricRotation) * Vector3.new(0, height, -cameraDistance)
+
+	local cameraPosition = rp.Position + finalOffset
+	local targetCFrame =
+		CFrame.new(cameraPosition, rp.Position + Vector3.new(0, 5, 0))
+
+	camera.CFrame = camera.CFrame:Lerp(targetCFrame, 0.5)
+end
+
+-- === MODO CASA ===
+local function ativarModoCasa(targetPartOpcional)
+	if not insideHouse then
+		insideHouse = true
 	end
 
-	EntrouNaCasa:Fire()
+	local gui = getCasaGui()
+	if gui then
+		gui.Enabled = true
+	end
+
+	if targetPartOpcional then
+		local _, y, _ = targetPartOpcional.CFrame:ToOrientation()
+		currentHouseRotationY = y
+	else
+		forcarDescobertaDeAngulo()
+	end
+
+	-- Backup de segurança
+	forcarDescobertaDeAngulo()
 
 	camera.CameraType = Enum.CameraType.Scriptable
-	RunService:BindToRenderStep("IsometricCamera", Enum.RenderPriority.Camera.Value, updateIsometricCamera)
+	RunService:UnbindFromRenderStep("IsometricCamera")
+	RunService:BindToRenderStep(
+		"IsometricCamera",
+		Enum.RenderPriority.Camera.Value + 1,
+		updateIsometricCamera
+	)
 end
 
-local function sairDaCasa()
-	ScreenEffects.FlashBranco()
-
+local function desativarModoCasa()
 	if not insideHouse then return end
+
 	insideHouse = false
-    
-    -- MUDANÇA 4: E usamos nossa função segura aqui também.
-    local gui = getCasaGui()
-    if gui then -- Só tentamos desabilitar se a GUI existir
-	    gui.Enabled = false
+	currentHouseRotationY = 0
 
-	    local botao = gui:FindFirstChild("BotaoArmarioGui")
-	    if botao then
-		    botao.Enabled = false
-		    local image = botao:FindFirstChild("ImageButton")
-		    if image then
-			    image.Visible = false
-			    image.Active = false
-		    end
-	    end
-    end
-
-	RunService:UnbindFromRenderStep("IsometricCamera")
-	task.wait(0.1)
-
-	if player.Character and player.Character:FindFirstChild("Humanoid") then
-		camera.CameraSubject = player.Character.Humanoid
+	local gui = getCasaGui()
+	if gui then
+		gui.Enabled = false
 	end
 
+	RunService:UnbindFromRenderStep("IsometricCamera")
 	camera.CameraType = Enum.CameraType.Custom
-end
 
-
-local function connectTouchEvents()
-	local casaPart = getCasaTrigger()
-	if not casaPart then return end
-
-	casaPart.Touched:Connect(function(hit)
-		if hit and hit.Parent == player.Character then
-			entrarNaCasa()
-		end
-	end)
-
-	casaPart.TouchEnded:Connect(function(hit)
-		if hit and hit.Parent == player.Character then
-			sairDaCasa()
-		end
-	end)
+	local char = player.Character
+	local hum = char and char:FindFirstChild("Humanoid")
+	if hum then
+		camera.CameraSubject = hum
+	end
 end
 
 function HouseController.PauseIsometricCamera()
-	print("HouseController: Pausando a câmera isométrica a pedido de outro script.")
 	RunService:UnbindFromRenderStep("IsometricCamera")
 end
 
-
-
-
-
 function HouseController.ResumeIsometricCamera()
-	print("HouseController: Retomando a câmera isométrica, se necessário.")
 	if insideHouse then
-		print("PERSONAGEM DENTRO DE CASA")
-
-		-- Força a limpeza de qualquer estado antigo da câmera
-		RunService:UnbindFromRenderStep("IsometricCamera")
-		camera.CameraType = Enum.CameraType.Custom
-		camera.CameraSubject = nil -- Remove qualquer vínculo com Humanoid
-
-		-- Espera o personagem e HumanoidRootPart existirem
-		task.spawn(function()
-			local character = player.Character
-			if not character then
-				player.CharacterAdded:Wait()
-				character = player.Character
-			end
-
-			local rootPart
-			for i = 1, 50 do
-				rootPart = character:FindFirstChild("HumanoidRootPart")
-				if rootPart then break end
-				task.wait(0.1)
-			end
-
-			if not rootPart then
-				warn("HumanoidRootPart não encontrado.")
-				return
-			end
-
-			-- Atribui a câmera scriptável e define a posição
-			camera.CameraType = Enum.CameraType.Scriptable
-			RunService:BindToRenderStep("IsometricCamera", Enum.RenderPriority.Camera.Value, updateIsometricCamera)
-			updateIsometricCamera()
-			
-		end)
+		camera.CameraType = Enum.CameraType.Scriptable
+		RunService:BindToRenderStep(
+			"IsometricCamera",
+			Enum.RenderPriority.Camera.Value + 1,
+			updateIsometricCamera
+		)
 	end
 end
 
-
-
+-- === START ===
 function HouseController.Start()
-	task.wait(1)
-
-	if player.Character then
-		connectTouchEvents()
-	end
-
-	player.CharacterAdded:Connect(function()
-		task.wait(1)
-		connectTouchEvents()
-
-		if insideHouse then
-			HouseController.ResumeIsometricCamera()
+	-- Eventos do servidor
+	cameraEvent.OnClientEvent:Connect(function(mode, targetPart)
+		if mode == "Isometrico" then
+			ativarModoCasa(targetPart)
+		elseif mode == "Normal" then
+			desativarModoCasa()
 		end
 	end)
+
+	-- Handshake inicial
+	task.defer(function()
+		pcall(function()
+			cameraSyncEvent:FireServer()
+		end)
+	end)
+
+	-- Fallback por altura
+	RunService:UnbindFromRenderStep("CasaAutoDetect")
+	RunService:BindToRenderStep(
+		"CasaAutoDetect",
+		Enum.RenderPriority.Camera.Value,
+		function()
+			local char = player.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if not hrp then return end
+
+			if hrp.Position.Y > ALTURA_INTERIOR_MINIMA then
+				if not insideHouse then
+					ativarModoCasa(nil)
+				end
+			else
+				if insideHouse then
+					desativarModoCasa()
+				end
+			end
+		end
+	)
+
+	-- Respawn
+	player.CharacterAdded:Connect(function(newChar)
+		RunService:UnbindFromRenderStep("IsometricCamera")
+
+		local hrp = newChar:WaitForChild("HumanoidRootPart", 10)
+		newChar:WaitForChild("Humanoid", 10)
+
+		task.wait(0.2)
+
+		local insideAttr = newChar:GetAttribute("InsideHouse")
+		if insideAttr == true or (hrp and hrp.Position.Y > ALTURA_INTERIOR_MINIMA) then
+			ativarModoCasa(nil)
+			camera.CFrame =
+				CFrame.new(hrp.Position + Vector3.new(20, 25, 20), hrp.Position)
+		else
+			desativarModoCasa()
+		end
+
+		pcall(function()
+			cameraSyncEvent:FireServer()
+		end)
+	end)
+
+	print("HouseController iniciado.")
 end
 
 return HouseController

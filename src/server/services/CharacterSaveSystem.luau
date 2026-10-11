@@ -3,6 +3,11 @@ local CharacterSaveSystem = {}
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+
+-- -- IMPORTANDO O NOVO MÓDULO --
+local NameTagService = require(ServerScriptService:WaitForChild("Server"):WaitForChild("services"):WaitForChild("NameTagService"))
+-- ------------------------------
 
 local CharacterStore = DataStoreService:GetDataStore("PlayerCharacterChoice")
 local CharactersFolder = ReplicatedStorage:WaitForChild("Characters")
@@ -10,210 +15,175 @@ local CharactersFolder = ReplicatedStorage:WaitForChild("Characters")
 local ShowSelectionEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("ShowCharacterSelection")
 local CharacterChosenEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("CharacterChosen")
 local RequestSelection = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SelectionEvents"):WaitForChild("RequestCharacterSelection")
-
+local PlayerLoadedEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("ScreenEvents"):WaitForChild("PlayerLoaded")
 
 local respawning = {}
 Players.CharacterAutoLoads = false
 
 RequestSelection.OnServerEvent:Connect(function(player)
-    print("Chamou evento de trocar pelo armário")
-    ShowSelectionEvent:FireClient(player)
+	ShowSelectionEvent:FireClient(player)
 end)
 
-local function addCustomNameTag(character, player, subtitleText, subtitleColor, animated)
-    local head = character:FindFirstChild("Head")
-    local root = character:FindFirstChild("HumanoidRootPart")
-    local partToAttach = head or root or character.PrimaryPart
-    if not partToAttach then return end
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "CustomNameTag"
-    billboard.Adornee = partToAttach
-    billboard.Size = UDim2.new(0, 160, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, partToAttach == root and 3.5 or 2.5, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Parent = character
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundTransparency = 1
-    frame.Parent = billboard
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 0.6, 0)
-    nameLabel.Position = UDim2.new(0, 0, 0, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.Name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextStrokeTransparency = 0.3
-    nameLabel.Font = Enum.Font.FredokaOne
-    
-    local length = string.len(player.Name)
-    if length <= 8 then
-        nameLabel.TextScaled = false
-        nameLabel.TextSize = 22
-    elseif length <= 12 then
-        nameLabel.TextScaled = false
-        nameLabel.TextSize = 18
-    else
-        nameLabel.TextScaled = false
-        nameLabel.TextSize = 14
-    end
-    nameLabel.Parent = frame
-
-    if subtitleText then
-    local subtitle = Instance.new("TextLabel")
-    subtitle.Size = UDim2.new(1, 0, 0.4, 0)
-    subtitle.Position = UDim2.new(0, 0, 0.6, 0)
-    subtitle.BackgroundTransparency = 1
-    subtitle.Text = subtitleText
-    subtitle.TextColor3 = subtitleColor or Color3.fromRGB(200, 200, 255)
-    subtitle.TextStrokeTransparency = 0.5
-    subtitle.Font = Enum.Font.FredokaOne
-    subtitle.TextScaled = true
-    subtitle.Parent = frame
-
-    if animated then
-        task.spawn(function()
-            while subtitle.Parent do
-                for i = 0, 360, 5 do
-                    local r = 0.5 + 0.5 * math.sin(math.rad(i))
-                    local g = 0.5 + 0.5 * math.sin(math.rad(i + 120))
-                    local b = 0.5 + 0.5 * math.sin(math.rad(i + 240))
-                    subtitle.TextColor3 = Color3.new(r, g, b)
-                    task.wait(0.05)
-                end
-            end
-        end)
-    end
+-- Funções auxiliares de Casa
+local function encontrarCasaExterior(player)
+	local casasFolder = workspace:FindFirstChild("Casas")
+	if not casasFolder then return nil end
+	local nomePadrao = player.Name .. "_Exterior"
+	local casa = casasFolder:FindFirstChild(nomePadrao)
+	if casa then return casa end
+	for _, modelo in pairs(casasFolder:GetChildren()) do
+		local ownerVal = modelo:FindFirstChild("Owner") or modelo:GetAttribute("Owner")
+		if (typeof(ownerVal) == "Instance" and ownerVal.Value == player.Name) or
+			(typeof(ownerVal) == "string" and ownerVal == player.Name) then
+			return modelo
+		end
+	end
+	return nil
 end
 
+local function encontrarCasaInterior(player)
+	local interioresFolder = workspace:FindFirstChild("Interiores")
+	if not interioresFolder then return nil end
+	return interioresFolder:FindFirstChild(player.Name .. "_Interior")
 end
 
--- Função para spawnar personagem
 local function spawnCharacter(player, characterName)
-    if respawning[player] then return end
-    respawning[player] = true
+	if respawning[player] then return end
+	respawning[player] = true
 
-    if player.Character then
-        player.Character:Destroy()
-    end
+	local oldChar = player.Character
 
-    local model = CharactersFolder:FindFirstChild(characterName)
-    if not model then
-        warn("Modelo de personagem não encontrado: " .. tostring(characterName))
-        ShowSelectionEvent:FireClient(player)
-        respawning[player] = nil
-        return
-    end
-    
-    local clone = model:Clone()
-    clone.Name = player.Name
-    
-    local humanoid = clone:FindFirstChildWhichIsA("Humanoid")
-    if humanoid then
-        if not humanoid:FindFirstChild("Animator") then
-            Instance.new("Animator", humanoid)
-        end
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	-- Validação
+	local model = CharactersFolder:FindFirstChild(characterName)
+	if not model then
+		ShowSelectionEvent:FireClient(player)
+		respawning[player] = nil
+		PlayerLoadedEvent:FireClient(player)
+		return
+	end
 
-        humanoid.Died:Connect(function()
-            task.wait(3)
-            local success, savedCharacter = pcall(function()
-                return CharacterStore:GetAsync(tostring(player.UserId))
-            end)
-            if success and savedCharacter then
-                spawnCharacter(player, savedCharacter)
-            else
-                ShowSelectionEvent:FireClient(player)
-            end
-        end)
-    end
+	local clone = model:Clone()
+	clone:SetAttribute("CharacterModel", characterName)
+	clone.Name = player.Name
 
-    if not clone.PrimaryPart then
-        local root = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChildWhichIsA("BasePart")
-        if root then
-            clone.PrimaryPart = root
-        else
-            warn("Sem PrimaryPart válida para o personagem:", characterName)
-        end
-    end
+	local humanoid = clone:FindFirstChildWhichIsA("Humanoid")
+	if humanoid then
+		if not humanoid:FindFirstChild("Animator") then Instance.new("Animator", humanoid) end
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.Died:Connect(function()
+			task.wait(3)
+			local success, saved = pcall(function() return CharacterStore:GetAsync(tostring(player.UserId)) end)
+			spawnCharacter(player, saved or "Default")
+		end)
+	end
 
-    local nomeCasa = player.Name .. "_Casa"
-    local casasFolder = workspace:FindFirstChild("Casas")
-    local spawnLocation = CFrame.new(0, 10, 0)
-    if casasFolder then
-        local casaDoPlayer = casasFolder:FindFirstChild(nomeCasa)
-        if casaDoPlayer then
-            local spawnPoint = casaDoPlayer:FindFirstChild("Spawn")
-            if spawnPoint and spawnPoint:IsA("BasePart") then
-                spawnLocation = spawnPoint.CFrame
-            end
-        end
-    end
-    clone:SetPrimaryPartCFrame(spawnLocation)
+	if not clone.PrimaryPart then
+		local root = clone:FindFirstChild("HumanoidRootPart") or clone:FindFirstChildWhichIsA("BasePart")
+		if root then clone.PrimaryPart = root end
+	end
 
-    clone.Parent = workspace
-    player.Character = clone
+	-- Lógica de Spawn
+	local spawnLocation = CFrame.new(0, 10, 0)
+	local spawnPadrao = workspace:FindFirstChild("SpawnLocation")
+	if spawnPadrao then spawnLocation = spawnPadrao.CFrame + Vector3.new(0, 5, 0) end
 
-    local subtitleText, subtitleColor, animated = "Rookie", Color3.fromRGB(200, 200, 255), false
+	local casaExterior = nil
+	local casaInterior = nil
+	local start = tick()
 
-if player.Name == "einsteinburro" then
-    subtitleText = "Creator"
-    subtitleColor = Color3.fromRGB(255, 255, 255)
-elseif player:GetAttribute("Premium") == true then
-    subtitleText = "Member"
-    subtitleColor = Color3.fromRGB(255, 215, 0) -- dourado
-    animated = true
-end
+	repeat
+		if not casaExterior then casaExterior = encontrarCasaExterior(player) end
+		if not casaInterior then casaInterior = encontrarCasaInterior(player) end
+		if not (casaExterior or casaInterior) then task.wait(0.5) end
+	until (casaExterior or casaInterior) or (tick() - start > 10)
 
-addCustomNameTag(clone, player, subtitleText, subtitleColor, animated)
+	if casaInterior and casaInterior:FindFirstChild("SpawnInterior") then
+		player:RequestStreamAroundAsync(casaInterior.SpawnInterior.Position)
+		spawnLocation = casaInterior.SpawnInterior.CFrame + Vector3.new(0, 3, 0)
+	elseif casaExterior then
+		if casaExterior.PrimaryPart then player:RequestStreamAroundAsync(casaExterior.PrimaryPart.Position) end
+		local spawnPoint = casaExterior:FindFirstChild("PortaEntrada") or casaExterior.PrimaryPart
+		if spawnPoint then spawnLocation = spawnPoint.CFrame * CFrame.new(0, 3, -5) end
+	else
+		if spawnPadrao then player:RequestStreamAroundAsync(spawnPadrao.Position) end
+	end
 
+	clone:PivotTo(spawnLocation)
+	clone.Parent = workspace
+	player.Character = clone
 
-    task.delay(1, function()
-        respawning[player] = nil
-    end)
+	local hrp = clone:WaitForChild("HumanoidRootPart", 5)
+	if hrp then hrp.CFrame = spawnLocation end
+	if oldChar and oldChar ~= clone and oldChar.Parent then oldChar:Destroy() end
+
+	-- === APLICAR NAMETAG ===
+	NameTagService.ApplyTag(player, clone)
+	-- =======================
+
+	task.delay(1, function() respawning[player] = nil end)
+	PlayerLoadedEvent:FireClient(player)
 end
 
 function CharacterSaveSystem.Start()
-    Players.PlayerAdded:Connect(function(player)
-        -- 1. Tenta carregar os dados do jogador
-        local success, savedCharacter = pcall(function()
-            return CharacterStore:GetAsync(tostring(player.UserId))
-        end)
+	Players.PlayerAdded:Connect(function(player)
+		NameTagService.LoadTag(player)
+		local success, savedCharacter = pcall(function()
+			return CharacterStore:GetAsync(tostring(player.UserId))
+		end)
 
-        -- 2. Decide o que fazer com base nos dados
-        if success and savedCharacter then
-            -- Se tinha dados, cria o personagem
-            spawnCharacter(player, savedCharacter)
-        else
-            -- Se não tinha dados (ou deu erro), mostra a tela de seleção
-            if not success then
-                warn("Erro ao carregar dados do jogador:", savedCharacter)
-            end
-            ShowSelectionEvent:FireClient(player)
-        end
+		if success and savedCharacter and typeof(savedCharacter) == "string" then
+			print(player.Name .. " tem dados salvos: " .. savedCharacter)
+			spawnCharacter(player, savedCharacter)
+		else
+			if not success then
+				warn("Falha ao carregar DataStore para " .. player.Name)
+			elseif not savedCharacter then
+				print(player.Name .. " é novo ou teve dados apagados.")
+			end
 
-    end)
+			ShowSelectionEvent:FireClient(player)
+		end
+	end)
 
-    CharacterChosenEvent.OnServerEvent:Connect(function(player, characterName)
-        pcall(function()
-            CharacterStore:SetAsync(tostring(player.UserId), characterName)
-        end)
-        spawnCharacter(player, characterName)
-    end)
+	CharacterChosenEvent.OnServerEvent:Connect(function(player, characterName)
+		if CharactersFolder:FindFirstChild(characterName) then
+			pcall(function()
+				CharacterStore:SetAsync(tostring(player.UserId), characterName)
+			end)
+			spawnCharacter(player, characterName)
+		else
+			warn(player.Name .. " tentou escolher um personagem inválido: " .. tostring(characterName))
+		end
+	end)
 
-    Players.PlayerRemoving:Connect(function(player)
-        -- Este bloco continua útil como uma segurança final para salvar os dados.
-        if player.Character then
-            local modelInFolder = CharactersFolder:FindFirstChild(player.Character.Name)
-            if modelInFolder then
-                 pcall(function()
-                    CharacterStore:SetAsync(tostring(player.UserId), player.Character.Name)
-                end)
-            end
-        end
-    end)
+	Players.PlayerRemoving:Connect(function(player)
+		local character = player.Character
+		if character then
+			NameTagService.SaveTag(player)
+			NameTagService.Cleanup(player)
+			local modelName = character:GetAttribute("CharacterModel")
+			if modelName and CharactersFolder:FindFirstChild(modelName) then
+				pcall(function()
+					CharacterStore:SetAsync(tostring(player.UserId), modelName)
+				end)
+			end
+		end
+	end)
+
+	game:BindToClose(function()
+		for _, player in ipairs(Players:GetPlayers()) do
+			NameTagService.SaveTag(player)
+			local character = player.Character
+			if character then
+				local modelName = character:GetAttribute("CharacterModel")
+				if modelName and CharactersFolder:FindFirstChild(modelName) then
+					pcall(function()
+						CharacterStore:SetAsync(tostring(player.UserId), modelName)
+					end)
+				end
+			end
+		end
+	end)
 end
 
 return CharacterSaveSystem
