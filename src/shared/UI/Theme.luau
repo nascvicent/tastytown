@@ -38,6 +38,8 @@ Theme.Colors = {
 	MapGround = Color3.fromRGB(129, 201, 120),
 	MapGroundDark = Color3.fromRGB(104, 178, 98),
 	MapHome = Color3.fromRGB(52, 152, 219),
+	MapRoad = Color3.fromRGB(242, 205, 160),   -- mesmo bege das ruas do jogo
+	MapWater = Color3.fromRGB(252, 250, 242),  -- leite
 	MapYou = Color3.fromRGB(255, 105, 180),
 }
 
@@ -58,6 +60,7 @@ Theme.Images = {
 	Car = "rbxassetid://135898697956083",
 	House = "rbxassetid://102142271940166",
 	Tag = "rbxassetid://123008814312942",
+	Vip = "rbxassetid://83695921970431", -- Golden Spatula
 }
 
 -- Mesmo sistema de raridade do UIUtils do Shop

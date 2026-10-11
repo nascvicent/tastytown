@@ -59,6 +59,15 @@ MapConfig.Extras = {
 	},
 }
 
+-- Desenho do mapa: as Parts dentro destes caminhos viram ruas / água vistas de cima
+MapConfig.Roads = {
+	{ "Ruas", "Pistas" },
+}
+MapConfig.Water = {
+	{ "Ruas", "RioLeite" },
+}
+MapConfig.MaxShapes = 800 -- limite de peças desenhadas (desempenho)
+
 -- Opcional: imagem de fundo do mapa (ex.: print da cidade vista de cima).
 -- Ao usar, defina WorldBounds com as coordenadas do Workspace que a imagem cobre
 -- (topo da imagem = MinZ, esquerda = MinX).

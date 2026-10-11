@@ -171,6 +171,68 @@ local function homeLanding(player)
 end
 
 -- ═══════════════════════════════════════════
+-- Formas do mapa (ruas e rio vistos de cima)
+-- ═══════════════════════════════════════════
+
+-- Pegada de uma Part no chão: centro, largura/comprimento e rotação (graus, sentido da tela)
+local function footprint(part)
+	local cf, size = part.CFrame, part.Size
+	local axes = {
+		{ dir = cf.RightVector, len = size.X },
+		{ dir = cf.UpVector, len = size.Y },
+		{ dir = cf.LookVector, len = size.Z },
+	}
+	-- Os dois eixos mais horizontais formam a pegada (funciona mesmo com Parts deitadas)
+	table.sort(axes, function(a, b)
+		return math.abs(a.dir.Y) < math.abs(b.dir.Y)
+	end)
+	local widthAxis, lengthAxis = axes[1], axes[2]
+	return {
+		x = cf.Position.X,
+		z = cf.Position.Z,
+		w = widthAxis.len,
+		l = lengthAxis.len,
+		r = math.deg(math.atan2(widthAxis.dir.Z, widthAxis.dir.X)),
+	}
+end
+
+local function collectShapes(paths, budget)
+	local shapes = {}
+	for _, path in ipairs(paths) do
+		local current = workspace
+		for _, name in ipairs(path) do
+			current = current and current:FindFirstChild(name)
+		end
+		if current then
+			local parts = current:IsA("BasePart") and { current } or current:GetDescendants()
+			for _, part in ipairs(parts) do
+				if #shapes >= budget then return shapes end
+				if part:IsA("BasePart") and part.Transparency < 1 then
+					local shape = footprint(part)
+					if shape.w >= 2 and shape.l >= 2 then
+						table.insert(shapes, shape)
+					end
+				end
+			end
+		else
+			warn("[MapService] Caminho do mapa não encontrado: Workspace." .. table.concat(path, "."))
+		end
+	end
+	return shapes
+end
+
+local shapesCache = nil
+local function getShapes()
+	if not shapesCache then
+		local budget = MapConfig.MaxShapes or 800
+		local water = collectShapes(MapConfig.Water or {}, budget)
+		local roads = collectShapes(MapConfig.Roads or {}, budget - #water)
+		shapesCache = { roads = roads, water = water }
+	end
+	return shapesCache
+end
+
+-- ═══════════════════════════════════════════
 -- Descoberta de destinos
 -- ═══════════════════════════════════════════
 local function resolvePath(path)
@@ -360,7 +422,12 @@ function MapService.Start()
 			})
 		end
 
-		return result
+		local shapes = getShapes()
+		return {
+			destinations = result,
+			roads = shapes.roads,
+			water = shapes.water,
+		}
 	end
 
 	TeleportTo.OnServerInvoke = function(player, id)

@@ -11,7 +11,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local UI = Shared:WaitForChild("UI")
@@ -69,24 +68,6 @@ local tabSetters = {}
 -- ═══════════════════════════════════════════
 -- Preview dos itens
 -- ═══════════════════════════════════════════
-
--- Usa os mesmos modelos do Shop (câmeras ajustadas para eles); carros também existem em ReplicatedStorage.Cars
-local function findModel(category, modelName)
-	if not modelName then return nil end
-
-	local lojas = playerGui:FindFirstChild("Lojas")
-	local shopGui = lojas and lojas:FindFirstChild("ShopGui")
-	local shopFrame = shopGui and shopGui:FindFirstChild("Frame")
-	local folder = shopFrame and shopFrame:FindFirstChild(category == "Car" and "ModelosCarros" or "ModelosCasas")
-	local model = folder and folder:FindFirstChild(modelName)
-	if model then return model end
-
-	if category == "Car" then
-		local cars = ReplicatedStorage:FindFirstChild("Cars")
-		return cars and cars:FindFirstChild(modelName)
-	end
-	return nil
-end
 
 local function createTagPreview(parent, tagText)
 	local plate = Components.new("Frame", {
@@ -170,10 +151,12 @@ local function createItemCard(category, itemName, isEquipped, order)
 	if category == "Tag" then
 		createTagPreview(preview, itemName)
 	else
-		local model = findModel(category, info.ModelName or itemName)
-		if model and model:IsA("Model") then
+		-- Mesmos modelos de vitrine do Shop (ReplicatedStorage.ShopModels)
+		local model = ItemCatalog.FindModel(category, info)
+		if model then
 			Components.Viewport(preview, model, info.Camera, isOpen)
 		else
+			warn("[Inventory] Modelo de vitrine não encontrado:", category, itemName)
 			createIconPreview(preview, category)
 		end
 	end

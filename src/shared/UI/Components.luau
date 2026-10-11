@@ -203,7 +203,9 @@ function Components.Panel(params)
 		Size = UDim2.fromScale(params.HasTabs and 0.82 or 1, 1),
 		BackgroundColor3 = Colors.Page,
 		BackgroundTransparency = Theme.Transparency.Page,
-		ClipsDescendants = true,
+		-- Sem ClipsDescendants aqui: recorte arredondado (UICorner) em um ancestral impede
+		-- ViewportFrames de renderizar. Quem rola (ScrollingFrame) já recorta o conteúdo.
+		ClipsDescendants = false,
 		Parent = body,
 	}, {
 		Components.corner(Theme.Radius.Page),
@@ -349,31 +351,199 @@ function Components.ItemCard(parent, params)
 		Parent = card,
 	})
 
+	-- Com subtítulo (ex.: preço) o nome sobe um pouco para caber as duas linhas
+	local hasSubtitle = params.Subtitle ~= nil
 	local nameLabel = Components.label({
 		Name = "NameLabel",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.6),
-		Size = UDim2.fromScale(0.9, 0.13),
+		Position = UDim2.fromScale(0.5, hasSubtitle and 0.545 or 0.6),
+		Size = UDim2.fromScale(0.9, hasSubtitle and 0.1 or 0.13),
 		Text = params.Title or "",
 		ZIndex = 3,
 		Parent = card,
 	})
 	Components.stroke(Theme.Darken(color, 0.15), 2, Enum.ApplyStrokeMode.Contextual).Parent = nameLabel
 
+	if hasSubtitle then
+		local subtitle = Components.label({
+			Name = "Subtitle",
+			AnchorPoint = Vector2.new(0.5, 0),
+			Position = UDim2.fromScale(0.5, 0.65),
+			Size = UDim2.fromScale(0.7, 0.085),
+			Text = params.Subtitle,
+			TextColor3 = Theme.Rarity.Legendary.Color,
+			ZIndex = 3,
+			Parent = card,
+		})
+		Components.stroke(Theme.Darken(Theme.Rarity.Legendary.Color, 0.45), 2, Enum.ApplyStrokeMode.Contextual).Parent = subtitle
+	end
+
 	return card, color, stroke
 end
 
--- Área de preview dentro do card (onde vai o viewport/ícone)
-function Components.CardPreview(card)
+-- Área de preview dentro do card (onde vai o viewport/ícone).
+-- compact = true quando o card tem subtítulo.
+function Components.CardPreview(card, compact)
 	return new("Frame", {
 		Name = "Preview",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0.13),
-		Size = UDim2.fromScale(0.88, 0.46),
+		Position = UDim2.fromScale(0.5, 0.12),
+		Size = UDim2.fromScale(0.88, compact and 0.42 or 0.47),
 		BackgroundTransparency = 1,
 		ZIndex = 2,
 		Parent = card,
 	})
+end
+
+-- Botão circular "i" no canto do card
+function Components.InfoButton(card, color)
+	local button = new("TextButton", {
+		Name = "InfoButton",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(0.95, 0.025),
+		Size = UDim2.fromScale(0.15, 0.15),
+		SizeConstraint = Enum.SizeConstraint.RelativeXX,
+		BackgroundColor3 = color,
+		AutoButtonColor = false,
+		Font = Theme.Font,
+		Text = "i",
+		TextColor3 = Colors.White,
+		TextScaled = true,
+		ZIndex = 6,
+		Parent = card,
+	}, {
+		Components.corner(999),
+		new("UIPadding", { PaddingTop = UDim.new(0.12, 0), PaddingBottom = UDim.new(0.12, 0) }),
+	})
+	Components.stroke(Colors.White, 2).Parent = button
+	Components.hoverScale(button, 0.12)
+	return button
+end
+
+-- Popup de informações (fundo escurecido + card central), como o do Shop
+function Components.InfoPopup(container, params)
+	local color = params.Color or Colors.Panel
+	local overlay = new("TextButton", {
+		Name = "PopupOverlay",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundColor3 = Colors.Black,
+		BackgroundTransparency = 0.45,
+		AutoButtonColor = false,
+		Text = "",
+		ZIndex = 100,
+		Parent = container,
+	}, {
+		Components.corner(Theme.Radius.Panel),
+	})
+
+	local popup = new("Frame", {
+		Name = "Popup",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.62, 0.78),
+		BackgroundColor3 = Colors.White,
+		ZIndex = 101,
+		Parent = overlay,
+	}, {
+		Components.corner(15),
+		new("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(Colors.White, color:Lerp(Colors.White, 0.75)),
+		}),
+	})
+	Components.stroke(color, 4).Parent = popup
+	local scale = new("UIScale", { Scale = 0.6, Parent = popup })
+
+	local title = Components.label({
+		Name = "Title",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.05),
+		Size = UDim2.fromScale(0.9, 0.14),
+		Text = params.Title or "",
+		TextColor3 = color,
+		ZIndex = 102,
+		Parent = popup,
+	})
+	Components.stroke(Theme.Darken(color, 0.4), 2, Enum.ApplyStrokeMode.Contextual).Parent = title
+
+	local description = Components.label({
+		Name = "Description",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0.22),
+		Size = UDim2.fromScale(0.86, 0.56),
+		Text = params.Description or "Sem descrição disponível.",
+		Font = Theme.BodyFont,
+		TextColor3 = Colors.Text,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		ZIndex = 102,
+		Parent = popup,
+	})
+	new("UITextSizeConstraint", { MaxTextSize = 18, Parent = description })
+
+	local closeButton = Components.ActionButton(popup, {
+		Name = "CloseButton",
+		Text = "FECHAR",
+		Color = color,
+		Size = UDim2.fromScale(0.42, 0.13),
+		Position = UDim2.fromScale(0.5, 0.95),
+	})
+	closeButton.ZIndex = 103
+
+	TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+
+	local closing = false
+	local function close()
+		if closing then return end
+		closing = true
+		local tween = TweenService:Create(scale, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.In), { Scale = 0.6 })
+		tween.Completed:Connect(function()
+			overlay:Destroy()
+		end)
+		tween:Play()
+	end
+	closeButton.MouseButton1Click:Connect(close)
+	overlay.MouseButton1Click:Connect(close)
+
+	return overlay, close
+end
+
+-- Brilho passando pelo botão de tempos em tempos (itens VIP)
+function Components.Shine(button)
+	button.ClipsDescendants = true
+	local shine = new("Frame", {
+		Name = "Shine",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(-0.3, 0.5),
+		Size = UDim2.fromScale(0.25, 2),
+		Rotation = 20,
+		BackgroundColor3 = Colors.White,
+		BorderSizePixel = 0,
+		ZIndex = button.ZIndex + 1,
+		Parent = button,
+	}, {
+		new("UIGradient", {
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5, 0.45),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+		}),
+	})
+
+	task.spawn(function()
+		while shine.Parent do
+			shine.Position = UDim2.fromScale(-0.3, 0.5)
+			local tween = TweenService:Create(shine, TweenInfo.new(0.7, Enum.EasingStyle.Sine), {
+				Position = UDim2.fromScale(1.3, 0.5),
+			})
+			tween:Play()
+			tween.Completed:Wait()
+			task.wait(2)
+		end
+	end)
+	return shine
 end
 
 -- ═══════════════════════════════════════════

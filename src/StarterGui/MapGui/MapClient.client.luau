@@ -83,6 +83,17 @@ if MapConfig.MapImage ~= "" then
 	})
 end
 
+-- Ruas e rio (abaixo dos pins); mesma área do pinLayer para usar a mesma projeção
+local shapesLayer = new("Frame", {
+	Name = "Shapes",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.fromScale(0.84, 0.8),
+	BackgroundTransparency = 1,
+	ZIndex = 2,
+	Parent = canvas,
+})
+
 -- Margem interna para os pins não encostarem na borda
 local pinLayer = new("Frame", {
 	Name = "Pins",
@@ -192,10 +203,13 @@ setGoStyle("IR!", Colors.Gray, false)
 -- Estado
 -- ═══════════════════════════════════════════
 local destinations = {}
+local mapShapes = nil -- { roads = {...}, water = {...} } (vem do servidor uma vez)
+local shapeFrames = {} -- { { frame, shape } }
 local selected = nil
 local pins = {} -- [id] = { button, stroke, scale }
 local teleporting = false
 local projection = nil -- função world (x,z) -> UDim2
+local pixelsPerStud = 0
 
 local fade = Components.ScreenFade(playerGui)
 local setCameraEffects = Components.CameraEffects("MapBlur")
@@ -207,32 +221,42 @@ end
 -- ═══════════════════════════════════════════
 -- Projeção mundo -> mapa
 -- ═══════════════════════════════════════════
--- Sem imagem: enquadra todos os destinos mantendo a proporção real (sem esticar)
+-- Retorna a projeção (x,z) -> posição no mapa e quantos pixels vale 1 stud.
+-- Sem imagem: enquadra destinos + ruas mantendo a proporção real (sem esticar).
 local function buildProjection()
+	local layerSize = pinLayer.AbsoluteSize
 	local bounds = MapConfig.WorldBounds
 	if MapConfig.MapImage ~= "" and bounds then
+		local rangeX, rangeZ = bounds.MaxX - bounds.MinX, bounds.MaxZ - bounds.MinZ
 		return function(x, z)
-			return UDim2.fromScale(
-				(x - bounds.MinX) / (bounds.MaxX - bounds.MinX),
-				(z - bounds.MinZ) / (bounds.MaxZ - bounds.MinZ)
-			)
-		end
+			return UDim2.fromScale((x - bounds.MinX) / rangeX, (z - bounds.MinZ) / rangeZ)
+		end, layerSize.X / rangeX
 	end
 
-	if #destinations == 0 then return nil end
 	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
-	for _, dest in ipairs(destinations) do
-		minX = math.min(minX, dest.x)
-		maxX = math.max(maxX, dest.x)
-		minZ = math.min(minZ, dest.z)
-		maxZ = math.max(maxZ, dest.z)
+	local function include(x, z, radius)
+		minX = math.min(minX, x - radius)
+		maxX = math.max(maxX, x + radius)
+		minZ = math.min(minZ, z - radius)
+		maxZ = math.max(maxZ, z + radius)
 	end
+	for _, dest in ipairs(destinations) do
+		include(dest.x, dest.z, 0)
+	end
+	if mapShapes then
+		for _, list in pairs(mapShapes) do
+			for _, shape in ipairs(list) do
+				include(shape.x, shape.z, math.max(shape.w, shape.l) / 2)
+			end
+		end
+	end
+	if minX == math.huge then return nil, 0 end
+
 	local rangeX = math.max(maxX - minX, 50)
 	local rangeZ = math.max(maxZ - minZ, 50)
 	local centerX, centerZ = (minX + maxX) / 2, (minZ + maxZ) / 2
 
-	local size = pinLayer.AbsoluteSize
-	local layerAspect = (size.Y > 0) and size.X / size.Y or 1
+	local layerAspect = (layerSize.Y > 0) and layerSize.X / layerSize.Y or 1
 	local worldAspect = rangeX / rangeZ
 	local spanX, spanZ = 1, 1
 	if worldAspect > layerAspect then
@@ -246,7 +270,33 @@ local function buildProjection()
 			0.5 + (x - centerX) / rangeX * spanX,
 			0.5 + (z - centerZ) / rangeZ * spanZ
 		)
+	end, layerSize.X * spanX / rangeX
+end
+
+-- Cria os retângulos das ruas/rio (uma vez); o tamanho é ajustado em layoutMap
+local function buildShapes()
+	for _, entry in ipairs(shapeFrames) do
+		entry.frame:Destroy()
 	end
+	shapeFrames = {}
+	if not mapShapes then return end
+
+	-- Sem borda: rio e ruas são feitos de várias Parts e as emendas apareceriam como linhas
+	local function addAll(list, color, zIndex)
+		for _, shape in ipairs(list or {}) do
+			local frame = new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Rotation = shape.r,
+				BackgroundColor3 = color,
+				BorderSizePixel = 0,
+				ZIndex = zIndex,
+				Parent = shapesLayer,
+			})
+			table.insert(shapeFrames, { frame = frame, shape = shape })
+		end
+	end
+	addAll(mapShapes.water, Colors.MapWater, 1)
+	addAll(mapShapes.roads, Colors.MapRoad, 2)
 end
 
 local function clampPosition(position)
@@ -352,9 +402,19 @@ local function createPin(dest)
 	pins[dest.id] = { button = button, stroke = stroke, scale = scale }
 end
 
-local function layoutPins()
-	projection = buildProjection()
+local function layoutMap()
+	projection, pixelsPerStud = buildProjection()
 	if not projection then return end
+
+	for _, entry in ipairs(shapeFrames) do
+		local shape = entry.shape
+		entry.frame.Position = projection(shape.x, shape.z)
+		entry.frame.Size = UDim2.fromOffset(
+			math.max(shape.w * pixelsPerStud, 2),
+			math.max(shape.l * pixelsPerStud, 2)
+		)
+	end
+
 	for _, dest in ipairs(destinations) do
 		local pin = pins[dest.id]
 		if pin then
@@ -363,24 +423,30 @@ local function layoutPins()
 	end
 end
 
-pinLayer:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutPins)
+pinLayer:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutMap)
 
 local function loadDestinations()
 	local ok, result = pcall(function()
 		return GetDestinations:InvokeServer()
 	end)
-	if not ok or type(result) ~= "table" then
+	if not ok or type(result) ~= "table" or type(result.destinations) ~= "table" then
 		warn("[Map] Erro ao carregar destinos:", result)
 		return
 	end
 
+	-- Ruas e rio não mudam durante o jogo: desenha só na primeira vez
+	if not mapShapes then
+		mapShapes = { roads = result.roads or {}, water = result.water or {} }
+		buildShapes()
+	end
+
 	local previousId = selected and selected.id
-	destinations = result
+	destinations = result.destinations
 	clearPins()
 	for _, dest in ipairs(destinations) do
 		createPin(dest)
 	end
-	layoutPins()
+	layoutMap()
 
 	local keep = nil
 	for _, dest in ipairs(destinations) do
