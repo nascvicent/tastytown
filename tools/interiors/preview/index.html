@@ -163,6 +163,19 @@ for (const l of [...arr(data.lights)].sort((a, b) => b.r * b.b - a.r * a.b).slic
   scene.add(light);
 }
 
+// Bonecos de referência com a altura dos personagens do jogo (~3,7 studs), só no preview.
+// Posições em medidas de projeto (multiplicadas pela escala do build).
+const CHAR_HEIGHT = 3.7;
+const REFS = [[2, 0, 10], [-23.5, 0, 18], [-14, -1.2, 58.6]];
+for (const [x, y, z] of REFS) {
+  const k = data.scale || 1;
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, CHAR_HEIGHT - 1.5 - 1.6, 4, 12), new THREE.MeshStandardMaterial({ color: 0xc8743c }));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.8, 16, 12), new THREE.MeshStandardMaterial({ color: 0xd98a4c }));
+  body.position.set(x * k, y * k + (CHAR_HEIGHT - 1.6) / 2, z * k);
+  head.position.set(x * k, y * k + CHAR_HEIGHT - 0.8, z * k);
+  scene.add(body, head);
+}
+
 // Câmeras prontas (posição, alvo)
 const VIEWS = {
   entrada: [[0, 9, 4], [0, 6, 30]],
@@ -177,8 +190,9 @@ const VIEWS = {
 };
 function setView(name) {
   const v = VIEWS[name] || VIEWS.entrada;
-  camera.position.set(...v[0]);
-  controls.target.set(...v[1]);
+  const k = data.scale || 1; // vistas estão em medidas de projeto; acompanham a escala do build
+  camera.position.set(...v[0].map((n) => n * k));
+  controls.target.set(...v[1].map((n) => n * k));
   // Na vista de cima esconde os tetos
   for (const m of meshes) if (m && m.userData.name?.startsWith("Teto")) m.visible = name !== "cima";
   controls.update();
@@ -193,6 +207,8 @@ for (const name of Object.keys(VIEWS)) {
   ui.appendChild(b);
 }
 window.setView = setView;
+// Para inspecionar ângulos livres pelo console: lookFrom([x,y,z],[x,y,z]) em medidas de projeto
+window.lookFrom = (pos, target) => { const k = data.scale || 1; camera.position.set(...pos.map((n) => n * k)); controls.target.set(...target.map((n) => n * k)); controls.update(); };
 
 document.fonts.load('40px "Fredoka One"').finally(() => {
   for (const g of arr(data.guis)) drawGui(g, data.parts[g.p]);

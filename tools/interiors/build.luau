@@ -98,7 +98,7 @@ local function dump(model)
 		end
 	end
 
-	return { name = model.Name, parts = parts, guis = guis, lights = lights }
+	return { name = model.Name, scale = model:GetAttribute("BuildScale") or 1, parts = parts, guis = guis, lights = lights }
 end
 
 local wanted = process.args[1]

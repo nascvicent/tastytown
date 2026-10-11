@@ -11,9 +11,12 @@
 local Kit = {}
 Kit.__index = Kit
 
-function Kit.new(rbx)
+-- scale: tamanho final em relação às medidas usadas no código (ex.: 0.7 para
+-- personagens menores que o rig padrão). Tudo é escalado a partir da origem.
+function Kit.new(rbx, scale)
 	local self = setmetatable({}, Kit)
 	self.rbx = rbx
+	self.scale = scale or 1
 	self.Instance = rbx.Instance
 	self.Vector3 = rbx.Vector3
 	self.CFrame = rbx.CFrame
@@ -65,8 +68,10 @@ function Kit:part(parent, props)
 	local p = self.Instance.new(props.class or "Part")
 	p.Name = props.name or "Part"
 	p.Anchored = true
-	p.Size = props.size
-	p.CFrame = props.cf
+	-- Escala uniforme a partir da origem: posição e tamanho; a rotação não muda
+	local s = self.scale
+	p.Size = props.size * s
+	p.CFrame = self.CFrame.new(props.cf.Position * s) * props.cf.Rotation
 	p.Color = props.color or self:rgb(255, 255, 255)
 	p.Material = props.material or Enum.Material.SmoothPlastic
 	p.TopSurface = Enum.SurfaceType.Smooth
@@ -138,7 +143,7 @@ function Kit:light(part, props)
 	local l = self.Instance.new(props.class or "PointLight")
 	l.Color = props.color or self:rgb(255, 230, 190)
 	l.Brightness = props.brightness or 1.5
-	l.Range = props.range or 16
+	l.Range = (props.range or 16) * self.scale
 	l.Shadows = props.shadows == true
 	if props.face and l:IsA("SpotLight") then
 		l.Face = props.face
@@ -161,7 +166,8 @@ function Kit:sign(part, opts)
 	gui.Name = "Sign"
 	gui.Face = opts.face or Enum.NormalId.Front
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = opts.pixelsPerStud or 40
+	-- Compensa a escala para o texto manter a mesma resolução
+	gui.PixelsPerStud = (opts.pixelsPerStud or 40) / self.scale
 	gui.LightInfluence = opts.glow and 0 or 1
 	gui.Brightness = opts.glow and 1.4 or 1
 	gui.Parent = part

@@ -12,8 +12,12 @@
 
 local Kit = require("./Kit")
 
+-- Os personagens do jogo têm ~3,7 studs (o rig padrão tem ~5,3): o código usa
+-- medidas de rig padrão e o Kit escala tudo por este fator.
+local SCALE = 0.7
+
 return function(rbx)
-	local k = Kit.new(rbx)
+	local k = Kit.new(rbx, SCALE)
 	local Vector3, CFrame, Enum = k.Vector3, k.CFrame, k.Enum
 	local V, CF = Vector3.new, CFrame.new
 	local rad = math.rad
@@ -56,6 +60,7 @@ return function(rbx)
 	local BOTTOM = -10 -- fundo da sala rebaixada
 
 	local root = k:model("CineCornInterior")
+	root:SetAttribute("BuildScale", SCALE)
 	local shell = k:model("Estrutura", root)
 	local lobby = k:model("Lobby", root)
 	local snack = k:model("Lanchonete", root)

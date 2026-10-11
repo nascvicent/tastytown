@@ -5,6 +5,11 @@
 	  • clona ServerStorage.Interiors.<Model> para Workspace.InterioresPredios na posição configurada
 	  • tocar na porta do prédio (Porta/Entrar) leva para o SpawnInterior
 	  • tocar na Saida do interior leva de volta para a frente da porta
+
+	Transição: mesmo fluxo das outras portas do jogo —
+	  servidor BiteEffectEvent:FireClient -> cliente anima as mordidas e, com a tela
+	  coberta, responde BiteEffectEvent:FireServer -> servidor teleporta e fecha a porta
+	  (FecharPortaEvent, BindableEvent escutado pelos scripts das portas).
 ]]
 
 local InteriorService = {}
@@ -13,7 +18,10 @@ local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local cameraEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SetCameraMode")
+local Events = ReplicatedStorage:WaitForChild("Events")
+local cameraEvent = Events:WaitForChild("SetCameraMode")
+local BiteEffectEvent = Events:WaitForChild("ScreenEvents"):WaitForChild("BiteEffectEvent")
+local FecharPortaEvent = Events:WaitForChild("FecharPortaEvent")
 
 -- Abaixo de 4000 de altura para o HouseController não ligar a câmera isométrica de casa
 local INTERIORS = {
@@ -25,8 +33,12 @@ local INTERIORS = {
 	},
 }
 
-local COOLDOWN = 1.5
+-- A animação de mordida leva ~1,3s para cobrir a tela + ~2,5s para descobrir
+local COOLDOWN = 4
+-- Se o cliente não responder (ex.: BiteAnim ausente), teleporta mesmo assim
+local BITE_TIMEOUT = 3
 local lastUse = {}
+local pending = {} -- [player] = CFrame de destino aguardando a tela ficar coberta
 
 local function resolve(path)
 	local current = workspace
@@ -45,11 +57,7 @@ end
 local function teleport(player, target)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or character:GetAttribute("Teleportando") then return end
-
-	local now = os.clock()
-	if lastUse[player] and now - lastUse[player] < COOLDOWN then return end
-	lastUse[player] = now
+	if not humanoid or humanoid.Health <= 0 then return end
 
 	if humanoid.SeatPart then
 		humanoid.Sit = false
@@ -73,7 +81,38 @@ local function teleport(player, target)
 	task.delay(1, function()
 		if character.Parent then character:SetAttribute("Teleportando", false) end
 	end)
+	FecharPortaEvent:Fire()
 end
+
+-- Inicia a transição de mordida; o teleporte acontece quando o cliente avisa que cobriu a tela
+local function requestTeleport(player, target)
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 or character:GetAttribute("Teleportando") then return end
+	if pending[player] then return end
+
+	local now = os.clock()
+	if lastUse[player] and now - lastUse[player] < COOLDOWN then return end
+	lastUse[player] = now
+
+	pending[player] = target
+	BiteEffectEvent:FireClient(player)
+
+	task.delay(BITE_TIMEOUT, function()
+		if pending[player] == target then
+			pending[player] = nil
+			teleport(player, target)
+		end
+	end)
+end
+
+BiteEffectEvent.OnServerEvent:Connect(function(player)
+	local target = pending[player]
+	if target then
+		pending[player] = nil
+		teleport(player, target)
+	end
+end)
 
 local function onTouch(part, callback)
 	part.Touched:Connect(function(hit)
@@ -133,10 +172,10 @@ local function setup(config, container)
 	local outside = outsideOf(building, entrance)
 
 	onTouch(entrance, function(player)
-		teleport(player, inside)
+		requestTeleport(player, inside)
 	end)
 	onTouch(exitPart, function(player)
-		teleport(player, outside)
+		requestTeleport(player, outside)
 	end)
 
 	print("[InteriorService] Interior pronto:", config.Name)
@@ -153,6 +192,7 @@ function InteriorService.Start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastUse[player] = nil
+		pending[player] = nil
 	end)
 end
 
