@@ -338,6 +338,12 @@ local function buildHouse(player, state)
 	if exteriorTemplate ~= starterExterior then stripScripts(exterior) end
 
 	if exterior:FindFirstChild("PortaEntrada", true) then
+		-- O pivô (que vira a casa para a rua) vem da PrimaryPart "Part". A referência pode
+		-- se perder quando o Rojo recria o modelo no Studio; sem ela a casa ficava de costas.
+		local base = exterior:FindFirstChild("Part")
+		if not exterior.PrimaryPart and base and base:IsA("BasePart") and base.Anchored then
+			exterior.PrimaryPart = base
+		end
 		exterior:PivotTo(spawnPart.CFrame) -- casa no padrão inicial: posiciona como sempre
 	else
 		placeGenericExterior(exterior, spawnPart, config)
