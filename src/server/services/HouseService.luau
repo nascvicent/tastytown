@@ -128,6 +128,15 @@ end
 
 -- Direção da rua em cada lote: em vez de supor, posiciona a casa inicial (sem colocar no
 -- mundo) e vê para onde aponta a porta dela. É o lado que o mapa foi pensado para a frente.
+-- O pivô da casa inicial (que a vira para a rua) vem da PrimaryPart "Part". A referência
+-- pode se perder quando o Rojo recria o modelo no Studio; sem ela a casa ficava de costas.
+local function ensureStarterPrimaryPart(model)
+	local base = model:FindFirstChild("Part")
+	if not model.PrimaryPart and base and base:IsA("BasePart") and base.Anchored then
+		model.PrimaryPart = base
+	end
+end
+
 -- A mesma sonda dá a altura do chão: a base da casa inicial, que fica apoiada certinho
 -- (o topo da Part "Base" do lote pode ficar acima da grama e fazia a casa flutuar).
 local lotCache = {}
@@ -135,6 +144,7 @@ local function lotReference(spawnPart)
 	local cached = lotCache[spawnPart]
 	if cached then return cached.front, cached.groundY end
 	local probe = starterExterior:Clone()
+	ensureStarterPrimaryPart(probe)
 	probe:PivotTo(spawnPart.CFrame)
 	local center = probe:GetBoundingBox().Position
 	local door = probe:FindFirstChild("PortaEntrada", true)
@@ -338,12 +348,7 @@ local function buildHouse(player, state)
 	if exteriorTemplate ~= starterExterior then stripScripts(exterior) end
 
 	if exterior:FindFirstChild("PortaEntrada", true) then
-		-- O pivô (que vira a casa para a rua) vem da PrimaryPart "Part". A referência pode
-		-- se perder quando o Rojo recria o modelo no Studio; sem ela a casa ficava de costas.
-		local base = exterior:FindFirstChild("Part")
-		if not exterior.PrimaryPart and base and base:IsA("BasePart") and base.Anchored then
-			exterior.PrimaryPart = base
-		end
+		ensureStarterPrimaryPart(exterior)
 		exterior:PivotTo(spawnPart.CFrame) -- casa no padrão inicial: posiciona como sempre
 	else
 		placeGenericExterior(exterior, spawnPart, config)
