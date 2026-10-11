@@ -189,7 +189,9 @@ local function refreshContent()
 	grid.CanvasPosition = Vector2.zero
 
 	for index, item in ipairs(ItemCatalog.Items[selectedCategory] or {}) do
-		createItemCard(selectedCategory, item, index)
+		if not item.ShopHidden then
+			createItemCard(selectedCategory, item, index)
+		end
 	end
 end
 

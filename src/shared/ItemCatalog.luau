@@ -13,7 +13,10 @@
 
 local ItemCatalog = {}
 
-local DEFAULT_CAMERA = { offsetY = 0, distanceMultiplier = 0.7, cameraHeight = 0.7, cameraAngleX = 0, lookAtOffsetY = 0 }
+-- Casa que todo jogador já possui e usa por padrão
+ItemCatalog.StarterHouse = "Casa de Biscoito"
+
+local DEFAULT_CAMERA ={ offsetY = 0, distanceMultiplier = 0.7, cameraHeight = 0.7, cameraAngleX = 0, lookAtOffsetY = 0 }
 
 -- Pastas em ReplicatedStorage.ShopModels com os modelos de vitrine
 ItemCatalog.ModelFolders = {
@@ -50,6 +53,16 @@ ItemCatalog.Items = {
 	},
 
 	House = {
+		-- Casa inicial: todo jogador possui (InventoryService), não aparece no Shop
+		{
+			Name = "Casa de Biscoito",
+			Price = 0,
+			Rarity = "Common",
+			ModelName = "CasaDeBiscoito",
+			ShopHidden = true,
+			Camera = { offsetY = 0, distanceMultiplier = 0.6, cameraHeight = 0.45, cameraAngleX = 0, lookAtOffsetY = 0 },
+			Description = "🍪 Casinha de crackers e biscoito recheado\n\n• A primeira casa de todo morador\n• Aconchegante e crocante!",
+		},
 		{
 			Name = "Cheese House",
 			Price = 5000,

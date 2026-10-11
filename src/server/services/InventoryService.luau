@@ -44,6 +44,14 @@ local InventoryUpdated = Instance.new("RemoteEvent")
 InventoryUpdated.Name = "InventoryUpdated"
 InventoryUpdated.Parent = InventoryFolder
 
+-- Casa que todo jogador possui (não é gravada no DataStore; é adicionada ao carregar)
+local ItemCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ItemCatalog"))
+local STARTER_HOUSE = ItemCatalog.StarterHouse
+
+-- Servidor: avisa quando um item é equipado -> (player, category, itemName)
+local EquippedChanged = Instance.new("BindableEvent")
+InventoryModule.EquippedChanged = EquippedChanged.Event
+
 -- ═══════════════════════════════════════════
 -- Cache local & Variáveis
 -- ═══════════════════════════════════════════
@@ -93,6 +101,10 @@ local function loadAllPlayerData(userId)
 
 	if not equipped or type(equipped) ~= "table" then
 		equipped = {}
+	end
+
+	if STARTER_HOUSE and not table.find(houses, STARTER_HOUSE) then
+		table.insert(houses, 1, STARTER_HOUSE)
 	end
 
 	if (not equipped.Car or equipped.Car == "") and #cars > 0 then
@@ -241,20 +253,41 @@ function InventoryModule.RemoveItem(player, category, itemName)
 	return true
 end
 
+-- Item equipado na categoria (nil se os dados ainda não carregaram)
+function InventoryModule.GetEquipped(player, category)
+	local cache = PlayerCache[player.UserId]
+	return cache and cache.Equipped[category] or nil
+end
+
+-- Espera os dados do jogador carregarem (até timeout segundos)
+function InventoryModule.WaitForData(player, timeout)
+	local start = os.clock()
+	while not PlayerCache[player.UserId] and player.Parent and os.clock() - start < (timeout or 15) do
+		task.wait(0.2)
+	end
+	return PlayerCache[player.UserId] ~= nil
+end
+
 -- ═══════════════════════════════════════════
 -- Método de Inicialização (Start)
 -- ═══════════════════════════════════════════
 
 function InventoryModule.Start()
 	-- Conectar Eventos de Player
-	Players.PlayerAdded:Connect(function(player)
+	local function onPlayerAdded(player)
 		local userId = player.UserId
+		if PlayerCache[userId] then return end
 		local data = loadAllPlayerData(userId)
 		PlayerCache[userId] = data
 
 		saveEquippedData(userId, data.Equipped)
 		print("[TastyTown Inventory] Dados carregados para " .. player.Name)
-	end)
+	end
+	Players.PlayerAdded:Connect(onPlayerAdded)
+	-- Jogadores que entraram antes do PlayerAdded ser conectado (comum no Play do Studio)
+	for _, player in ipairs(Players:GetPlayers()) do
+		task.spawn(onPlayerAdded, player)
+	end
 
 	Players.PlayerRemoving:Connect(function(player)
 		local userId = player.UserId
@@ -332,6 +365,7 @@ function InventoryModule.Start()
 			category = category,
 			equippedItem = itemName,
 		})
+		EquippedChanged:Fire(player, category, itemName)
 
 		print("[TastyTown Inventory] " .. player.Name .. " equipou " .. category .. ": " .. itemName)
 	end)

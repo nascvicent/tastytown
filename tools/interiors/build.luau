@@ -16,6 +16,7 @@ local process = require("@lune/process")
 
 local INTERIORS = {
 	CineCorn = require("./CineCorn"),
+	CandyMansion = require("./CandyMansion"),
 }
 
 local OUT_DIR = "src/ServerStorage/Interiors"

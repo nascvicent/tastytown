@@ -18,10 +18,8 @@ local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Events = ReplicatedStorage:WaitForChild("Events")
-local cameraEvent = Events:WaitForChild("SetCameraMode")
-local BiteEffectEvent = Events:WaitForChild("ScreenEvents"):WaitForChild("BiteEffectEvent")
-local FecharPortaEvent = Events:WaitForChild("FecharPortaEvent")
+local cameraEvent = ReplicatedStorage:WaitForChild("Events"):WaitForChild("SetCameraMode")
+local TeleportTransition = require(script.Parent.TeleportTransition)
 
 -- Abaixo de 4000 de altura para o HouseController não ligar a câmera isométrica de casa
 local INTERIORS = {
@@ -32,13 +30,6 @@ local INTERIORS = {
 		Position = Vector3.new(0, 2500, -3000),
 	},
 }
-
--- A animação de mordida leva ~1,3s para cobrir a tela + ~2,5s para descobrir
-local COOLDOWN = 4
--- Se o cliente não responder (ex.: BiteAnim ausente), teleporta mesmo assim
-local BITE_TIMEOUT = 3
-local lastUse = {}
-local pending = {} -- [player] = CFrame de destino aguardando a tela ficar coberta
 
 local function resolve(path)
 	local current = workspace
@@ -54,65 +45,18 @@ local function firstPart(inst)
 	return inst:FindFirstChildWhichIsA("BasePart", true)
 end
 
-local function teleport(player, target)
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 then return end
-
-	if humanoid.SeatPart then
-		humanoid.Sit = false
-		task.wait(0.15)
-	end
-
-	character:SetAttribute("Teleportando", true)
-	pcall(function()
-		player:RequestStreamAroundAsync(target.Position, 3)
-	end)
-	character:PivotTo(target)
-	local root = character:FindFirstChild("HumanoidRootPart")
-	if root then root.AssemblyLinearVelocity = Vector3.zero end
-
-	-- Garante câmera normal (caso viesse de dentro de casa)
+-- Ao chegar: garante câmera normal (caso viesse de dentro de casa)
+local function onArrive(character)
 	if character:GetAttribute("InsideHouse") then
 		character:SetAttribute("InsideHouse", false)
-		cameraEvent:FireClient(player, "Normal")
+		local player = Players:GetPlayerFromCharacter(character)
+		if player then cameraEvent:FireClient(player, "Normal") end
 	end
-
-	task.delay(1, function()
-		if character.Parent then character:SetAttribute("Teleportando", false) end
-	end)
-	FecharPortaEvent:Fire()
 end
 
--- Inicia a transição de mordida; o teleporte acontece quando o cliente avisa que cobriu a tela
 local function requestTeleport(player, target)
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid or humanoid.Health <= 0 or character:GetAttribute("Teleportando") then return end
-	if pending[player] then return end
-
-	local now = os.clock()
-	if lastUse[player] and now - lastUse[player] < COOLDOWN then return end
-	lastUse[player] = now
-
-	pending[player] = target
-	BiteEffectEvent:FireClient(player)
-
-	task.delay(BITE_TIMEOUT, function()
-		if pending[player] == target then
-			pending[player] = nil
-			teleport(player, target)
-		end
-	end)
+	TeleportTransition.Request(player, target, { onArrive = onArrive })
 end
-
-BiteEffectEvent.OnServerEvent:Connect(function(player)
-	local target = pending[player]
-	if target then
-		pending[player] = nil
-		teleport(player, target)
-	end
-end)
 
 local function onTouch(part, callback)
 	part.Touched:Connect(function(hit)
@@ -189,11 +133,6 @@ function InteriorService.Start()
 	for _, config in ipairs(INTERIORS) do
 		task.spawn(setup, config, container)
 	end
-
-	Players.PlayerRemoving:Connect(function(player)
-		lastUse[player] = nil
-		pending[player] = nil
-	end)
 end
 
 return InteriorService
