@@ -302,18 +302,25 @@ function Components.Grid(parent, params)
 		}),
 	})
 
+	local columns = params.Columns or 3
+	local aspect = params.CellAspect or 0.72 -- largura / altura
+	local gap = 14
 	local layout = new("UIGridLayout", {
-		CellSize = UDim2.new(params.CellScale or 0.31, 0, 0, 10),
-		CellPadding = UDim2.new(0.025, 0, 0, 14),
+		CellPadding = UDim2.fromOffset(gap, gap),
 		HorizontalAlignment = Enum.HorizontalAlignment.Left,
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = scroll,
 	})
-	-- Mantém a proporção dos cards (largura/altura) em qualquer resolução
-	new("UIAspectRatioConstraint", {
-		AspectRatio = params.CellAspect or 0.72,
-		Parent = layout,
-	})
+
+	-- Tamanho da célula em pixels a partir da largura útil (12 + 16 de padding e a barra de rolagem).
+	-- Não usar UIAspectRatioConstraint no layout: ele encolhe a célula para caber no CellSize.
+	local function updateCells()
+		local usable = scroll.AbsoluteSize.X - 28 - scroll.ScrollBarThickness
+		local width = math.max(math.floor((usable - gap * (columns - 1)) / columns), 60)
+		layout.CellSize = UDim2.fromOffset(width, math.floor(width / aspect))
+	end
+	scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateCells)
+	updateCells()
 
 	return scroll
 end
