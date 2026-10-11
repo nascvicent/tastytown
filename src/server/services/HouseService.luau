@@ -128,17 +128,33 @@ end
 
 -- Direção da rua em cada lote: em vez de supor, posiciona a casa inicial (sem colocar no
 -- mundo) e vê para onde aponta a porta dela. É o lado que o mapa foi pensado para a frente.
-local lotFrontCache = {}
-local function lotFront(spawnPart)
-	if lotFrontCache[spawnPart] then return lotFrontCache[spawnPart] end
+-- A mesma sonda dá a altura do chão: a base da casa inicial, que fica apoiada certinho
+-- (o topo da Part "Base" do lote pode ficar acima da grama e fazia a casa flutuar).
+local lotCache = {}
+local function lotReference(spawnPart)
+	local cached = lotCache[spawnPart]
+	if cached then return cached.front, cached.groundY end
 	local probe = starterExterior:Clone()
 	probe:PivotTo(spawnPart.CFrame)
+	local center = probe:GetBoundingBox().Position
 	local door = probe:FindFirstChild("PortaEntrada", true)
-	local front = door and flat(door.Position - probe:GetBoundingBox().Position)
+	local front = door and flat(door.Position - center)
+
+	-- Base visível da casa inicial (ignora gatilhos invisíveis, que podem descer mais)
+	local groundY = math.huge
+	for _, part in ipairs(probe:GetDescendants()) do
+		if part:IsA("BasePart") and part.Transparency < 1 then
+			local cf, size = part.CFrame, part.Size
+			local halfHeight = math.abs(cf.RightVector.Y) * size.X / 2 + math.abs(cf.UpVector.Y) * size.Y / 2 + math.abs(cf.LookVector.Y) * size.Z / 2
+			groundY = math.min(groundY, cf.Position.Y - halfHeight)
+		end
+	end
 	probe:Destroy()
+
 	front = front or flat(spawnPart.CFrame.LookVector) or Vector3.new(0, 0, -1)
-	lotFrontCache[spawnPart] = front
-	return front
+	if groundY == math.huge then groundY = spawnPart.Position.Y + spawnPart.Size.Y / 2 end
+	lotCache[spawnPart] = { front = front, groundY = groundY }
+	return front, groundY
 end
 
 -- Ângulo (em torno de Y) de uma direção no plano XZ: 0 = +Z, cresce em direção a +X.
@@ -172,9 +188,10 @@ local function placeGenericExterior(exterior, spawnPart, config)
 	local doorDir = (doorPos and flat(doorPos - center))
 		or (CFrame.Angles(0, math.rad(config.FrontYaw or 0), 0) * Vector3.new(0, 0, -1))
 
-	local front = lotFront(spawnPart)
+	local front, groundY = lotReference(spawnPart)
 	local yaw = heading(front) - heading(doorDir)
-	local groundTop = spawnPart.Position + Vector3.new(0, spawnPart.Size.Y / 2, 0)
+	-- Um pouquinho enterrada para não aparecer fresta entre a casa e a grama
+	local groundTop = Vector3.new(spawnPart.Position.X, groundY - 0.2, spawnPart.Position.Z)
 	exterior:PivotTo(CFrame.new(groundTop) * CFrame.Angles(0, yaw, 0))
 
 	-- Entrada: na porta do modelo ou no meio da face da frente
