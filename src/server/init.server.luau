@@ -6,12 +6,14 @@ local CoinManager = require(script.controllers.CoinManager)
 local ShopService = require(script.services.ShopService)
 local MusicZoneController = require(script.controllers.MusicZoneController)
 local RacePortalService = require(script.services.RacePortalService)
+local MapService = require(script.services.MapService)
 
 -- Requisitando o novo módulo de inventário
 local InventoryService = require(script.services.InventoryService) -- Ajuste o caminho conforme necessário
 
 -- Inicialização
 CharacterSaveSystem.Start()
+MapService.Start()
 CoinManager.start()
 ShopService.Start()
 MusicZoneController.Start()
