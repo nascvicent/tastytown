@@ -233,6 +233,31 @@ local function groundedSpot(position, facing, exclude)
 	return CFrame.lookAt(spot, spot + facing)
 end
 
+-- Porta animada (Hing + peças soltas soldadas): garante as soldas antes de a casa ir
+-- para o mundo. As WeldConstraints podem chegar sem Part0/Part1 (ex.: modelo recriado
+-- pela sincronização do Rojo) e aí a porta despencava. Toda peça não ancorada da casa
+-- pertence à porta, então é soldada direto na dobradiça.
+local function repairDoorWelds(exterior)
+	local hinge = exterior:FindFirstChild("Hing", true)
+	if not hinge or not hinge:IsA("BasePart") then return end
+
+	for _, weld in ipairs(exterior:GetDescendants()) do
+		if weld:IsA("WeldConstraint") and (not weld.Part0 or not weld.Part1) then
+			weld:Destroy()
+		end
+	end
+
+	for _, part in ipairs(exterior:GetDescendants()) do
+		if part:IsA("BasePart") and not part.Anchored and part ~= hinge then
+			local weld = Instance.new("WeldConstraint")
+			weld.Name = "SoldaPorta"
+			weld.Part0 = hinge
+			weld.Part1 = part
+			weld.Parent = part
+		end
+	end
+end
+
 -- Saída do interior: capacho com prompt (substitui a PortaSaida de encostar)
 local function setupExitPrompt(player, interior)
 	local marker = interior:FindFirstChild("SaidaCasa", true) or interior:FindFirstChild("PortaSaida", true)
@@ -317,6 +342,7 @@ local function buildHouse(player, state)
 	else
 		placeGenericExterior(exterior, spawnPart, config)
 	end
+	repairDoorWelds(exterior)
 	exterior:SetAttribute("OwnerId", player.UserId)
 	exterior:SetAttribute("LoteOriginal", state.lote.Name)
 	exterior:SetAttribute("Casa", houseName)
