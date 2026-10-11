@@ -69,7 +69,7 @@ local HOUSES = {
 	["Candy Mansion"] = {
 		Exterior = shopModel("CandyMansion"),
 		Interior = interiorModel("CandyMansionInterior"),
-		FrontYaw = 180, -- a porta do modelo fica no +Z (sem isso a casa ficava de costas para a rua)
+		FrontYaw = 0,
 	},
 	["Cheese House"] = { Exterior = shopModel("CheeseHouse") },
 	["Sushi House"] = { Exterior = shopModel("SushiHouse") },
