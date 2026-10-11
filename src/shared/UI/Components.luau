@@ -634,7 +634,12 @@ function Components.Viewport(parent, model, cameraConfig, isActive)
 
 	local config = cameraConfig or DEFAULT_CAMERA
 	local currentCFrame, size = clone:GetBoundingBox()
-	clone:PivotTo(CFrame.new(0, config.offsetY or 0, 0) * currentCFrame.Rotation)
+	clone:PivotTo(CFrame.new(0, 0, 0) * currentCFrame.Rotation)
+
+	-- Centraliza pela caixa do modelo (não pelo pivô): modelos com o pivô longe do
+	-- centro, como a Candy Mansion, ficavam deslocados e longe da câmera.
+	local centered = clone:GetBoundingBox()
+	clone:PivotTo(CFrame.new(-centered.Position + Vector3.new(0, config.offsetY or 0, 0)) * clone:GetPivot())
 
 	local maxSize = math.max(size.X, size.Y, size.Z)
 	local distance = maxSize * (config.distanceMultiplier or 0.7)

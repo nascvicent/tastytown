@@ -171,68 +171,6 @@ local function homeLanding(player)
 end
 
 -- ═══════════════════════════════════════════
--- Formas do mapa (ruas e rio vistos de cima)
--- ═══════════════════════════════════════════
-
--- Pegada de uma Part no chão: centro, largura/comprimento e rotação (graus, sentido da tela)
-local function footprint(part)
-	local cf, size = part.CFrame, part.Size
-	local axes = {
-		{ dir = cf.RightVector, len = size.X },
-		{ dir = cf.UpVector, len = size.Y },
-		{ dir = cf.LookVector, len = size.Z },
-	}
-	-- Os dois eixos mais horizontais formam a pegada (funciona mesmo com Parts deitadas)
-	table.sort(axes, function(a, b)
-		return math.abs(a.dir.Y) < math.abs(b.dir.Y)
-	end)
-	local widthAxis, lengthAxis = axes[1], axes[2]
-	return {
-		x = cf.Position.X,
-		z = cf.Position.Z,
-		w = widthAxis.len,
-		l = lengthAxis.len,
-		r = math.deg(math.atan2(widthAxis.dir.Z, widthAxis.dir.X)),
-	}
-end
-
-local function collectShapes(paths, budget)
-	local shapes = {}
-	for _, path in ipairs(paths) do
-		local current = workspace
-		for _, name in ipairs(path) do
-			current = current and current:FindFirstChild(name)
-		end
-		if current then
-			local parts = current:IsA("BasePart") and { current } or current:GetDescendants()
-			for _, part in ipairs(parts) do
-				if #shapes >= budget then return shapes end
-				if part:IsA("BasePart") and part.Transparency < 1 then
-					local shape = footprint(part)
-					if shape.w >= 2 and shape.l >= 2 then
-						table.insert(shapes, shape)
-					end
-				end
-			end
-		else
-			warn("[MapService] Caminho do mapa não encontrado: Workspace." .. table.concat(path, "."))
-		end
-	end
-	return shapes
-end
-
-local shapesCache = nil
-local function getShapes()
-	if not shapesCache then
-		local budget = MapConfig.MaxShapes or 800
-		local water = collectShapes(MapConfig.Water or {}, budget)
-		local roads = collectShapes(MapConfig.Roads or {}, budget - #water)
-		shapesCache = { roads = roads, water = water }
-	end
-	return shapesCache
-end
-
--- ═══════════════════════════════════════════
 -- Descoberta de destinos
 -- ═══════════════════════════════════════════
 local function resolvePath(path)
@@ -279,7 +217,6 @@ local function discover()
 			Id = id,
 			Instance = inst,
 			Name = override.Name or defaults.Name or prettify(inst.Name),
-			Icon = override.Icon or defaults.Icon or "📍",
 			Description = override.Description or defaults.Description or "",
 			Kind = defaults.Kind,
 			Order = override.Order or defaults.Order or 50,
@@ -290,7 +227,6 @@ local function discover()
 	if spawnLocation then
 		add("spawn", spawnLocation, {
 			Name = MapConfig.Spawn.Name,
-			Icon = MapConfig.Spawn.Icon,
 			Description = MapConfig.Spawn.Description,
 			Kind = "spawn",
 			Order = 0,
@@ -311,7 +247,6 @@ local function discover()
 		if inst then
 			add("extra:" .. extra.Id, inst, {
 				Name = extra.Name,
-				Icon = extra.Icon,
 				Description = extra.Description,
 				Kind = "extra",
 				Order = 20,
@@ -331,7 +266,6 @@ local function discover()
 		if inst:IsDescendantOf(workspace) then
 			add("tag:" .. inst:GetFullName(), inst, {
 				Name = inst:GetAttribute("MapName"),
-				Icon = inst:GetAttribute("MapIcon"),
 				Description = inst:GetAttribute("MapDescription"),
 				Kind = "custom",
 				Order = 30,
@@ -351,6 +285,80 @@ local function findDestination(id)
 		if dest.Id == id then return dest end
 	end
 	return nil
+end
+
+-- ═══════════════════════════════════════════
+-- Miniatura 3D (ReplicatedStorage.MapMiniature)
+-- ═══════════════════════════════════════════
+-- Fica em ReplicatedStorage para chegar inteira ao cliente mesmo com StreamingEnabled.
+local STRIP_CLASSES = { "LuaSourceContainer", "Sound", "ParticleEmitter", "ProximityPrompt", "ClickDetector", "TouchTransmitter" }
+
+local function cleanClone(inst)
+	if not inst.Archivable then return nil end
+	local clone = inst:Clone()
+	if not clone then return nil end
+
+	-- Pastas viram Model para ter GetBoundingBox/PivotTo no cliente
+	if clone:IsA("Folder") then
+		local model = Instance.new("Model")
+		model.Name = clone.Name
+		for _, child in ipairs(clone:GetChildren()) do
+			child.Parent = model
+		end
+		clone:Destroy()
+		clone = model
+	end
+
+	for _, d in ipairs(clone:GetDescendants()) do
+		local strip = false
+		for _, className in ipairs(STRIP_CLASSES) do
+			if d:IsA(className) then strip = true break end
+		end
+		if strip then
+			d:Destroy()
+		elseif d:IsA("BasePart") then
+			d.Anchored = true
+			d.CanCollide = false
+			d.CanTouch = false
+			d.CanQuery = false
+		end
+	end
+	return clone
+end
+
+local function buildMiniature()
+	local old = ReplicatedStorage:FindFirstChild("MapMiniature")
+	if old then old:Destroy() end
+
+	local folder = Instance.new("Folder")
+	folder.Name = "MapMiniature"
+	local seen = {}
+
+	for _, dest in ipairs(discover()) do
+		if dest.Kind ~= "spawn" then
+			local clone = cleanClone(dest.Instance)
+			if clone then
+				clone:SetAttribute("DestinationId", dest.Id)
+				clone.Parent = folder
+				seen[dest.Instance] = true
+			end
+		end
+	end
+
+	for _, path in ipairs(MapConfig.Scenery or {}) do
+		local inst = resolvePath(path)
+		if inst and not seen[inst] then
+			local clone = cleanClone(inst)
+			if clone then
+				clone.Parent = folder
+				seen[inst] = true
+			end
+		elseif not inst then
+			warn("[MapService] Cenário não encontrado: Workspace." .. table.concat(path, "."))
+		end
+	end
+
+	folder.Parent = ReplicatedStorage
 end
 
 -- ═══════════════════════════════════════════
@@ -391,18 +399,21 @@ end
 -- Start
 -- ═══════════════════════════════════════════
 function MapService.Start()
+	buildMiniature()
+
+	-- x/z: posição no chão; y: topo do modelo (onde a etiqueta do mapa fica presa)
 	GetDestinations.OnServerInvoke = function(player)
 		local result = {}
 		for _, dest in ipairs(discover()) do
-			local cf = boundsOf(dest.Instance)
+			local cf, size = boundsOf(dest.Instance)
 			if cf then
 				table.insert(result, {
 					id = dest.Id,
 					name = dest.Name,
-					icon = dest.Icon,
 					description = dest.Description,
 					kind = dest.Kind,
 					x = cf.Position.X,
+					y = cf.Position.Y + size.Y / 2,
 					z = cf.Position.Z,
 				})
 			end
@@ -410,24 +421,19 @@ function MapService.Start()
 
 		local exterior = getHomeExterior(player)
 		if exterior then
-			local pos = exterior:GetPivot().Position
+			local cf, size = exterior:GetBoundingBox()
 			table.insert(result, {
 				id = "home",
 				name = MapConfig.Home.Name,
-				icon = MapConfig.Home.Icon,
 				description = MapConfig.Home.Description,
 				kind = "home",
-				x = pos.X,
-				z = pos.Z,
+				x = cf.Position.X,
+				y = cf.Position.Y + size.Y / 2,
+				z = cf.Position.Z,
 			})
 		end
 
-		local shapes = getShapes()
-		return {
-			destinations = result,
-			roads = shapes.roads,
-			water = shapes.water,
-		}
+		return { destinations = result }
 	end
 
 	TeleportTo.OnServerInvoke = function(player, id)

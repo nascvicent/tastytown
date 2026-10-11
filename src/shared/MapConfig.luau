@@ -1,11 +1,15 @@
 --[[
 	Configuração do Mapa de teleporte.
 
-	Destinos são descobertos automaticamente pelo servidor (MapService):
+	O mapa é uma miniatura 3D da cidade (ViewportFrame) com etiquetas de UI.
+	O servidor (MapService) monta essa miniatura em ReplicatedStorage.MapMiniature
+	clonando os destinos e o cenário abaixo, sem scripts e sem colisão.
+
+	Destinos descobertos automaticamente:
 	  • SpawnLocation do Workspace
 	  • Cada filho da pasta Workspace.Predios (prédios novos entram sozinhos)
 	  • "Extras" (ponte, rio) achados pelo nome, ou pelo Path se você definir
-	  • Qualquer instância com a tag "MapDestination" (atributos opcionais: MapName, MapIcon)
+	  • Qualquer instância com a tag "MapDestination" (atributos opcionais: MapName, MapDescription)
 	  • A casa do próprio jogador
 
 	Ponto de pouso: se o destino tiver uma Part chamada "MapSpawn" (em qualquer
@@ -21,22 +25,20 @@ MapConfig.TeleportCooldown = 3
 
 -- Ajustes por nome da instância no Workspace
 MapConfig.Overrides = {
-	CineCorn = { Name = "CineCorn", Icon = "🍿", Description = "O cinema mais crocante da cidade." },
-	CoffeShop = { Name = "Coffee Shop", Icon = "☕", Description = "Café quentinho e música ambiente." },
-	FruitGym = { Name = "Fruit Gym", Icon = "🍎", Description = "Academia para frutas em forma." },
-	-- Exemplo: Esconder um prédio do mapa
+	CineCorn = { Name = "CineCorn", Description = "O cinema mais crocante da cidade." },
+	CoffeShop = { Name = "Coffee Shop", Description = "Café quentinho e música ambiente." },
+	FruitGym = { Name = "Fruit Gym", Description = "Academia para frutas em forma." },
+	-- Exemplo: esconder um prédio do mapa
 	-- PredioEmObras = { Hidden = true },
 }
 
 MapConfig.Spawn = {
 	Name = "Praça Central",
-	Icon = "⭐",
 	Description = "O ponto de partida de todo mundo.",
 }
 
 MapConfig.Home = {
 	Name = "Minha Casa",
-	Icon = "🏠",
 	Description = "Volte para a sua casa.",
 }
 
@@ -46,32 +48,40 @@ MapConfig.Extras = {
 	{
 		Id = "ponte",
 		Name = "Ponte",
-		Icon = "🌉",
 		Description = "A ponte sobre o Rio de Leite.",
 		Patterns = { "^ponte", "^bridge" },
 	},
 	{
 		Id = "rio",
 		Name = "Rio de Leite",
-		Icon = "🥛",
 		Description = "As margens do famoso Rio de Leite.",
+		Path = { "Ruas", "RioLeite" },
 		Patterns = { "^rio", "leite", "milk", "^river" },
 	},
 }
 
--- Desenho do mapa: as Parts dentro destes caminhos viram ruas / água vistas de cima
-MapConfig.Roads = {
+-- Cenário da miniatura (além dos destinos). Tire ARVORES se pesar no celular.
+MapConfig.Scenery = {
 	{ "Ruas", "Pistas" },
-}
-MapConfig.Water = {
 	{ "Ruas", "RioLeite" },
+	{ "Ruas", "ARVORES" },
 }
-MapConfig.MaxShapes = 800 -- limite de peças desenhadas (desempenho)
 
--- Opcional: imagem de fundo do mapa (ex.: print da cidade vista de cima).
--- Ao usar, defina WorldBounds com as coordenadas do Workspace que a imagem cobre
--- (topo da imagem = MinZ, esquerda = MinX).
-MapConfig.MapImage = ""
-MapConfig.WorldBounds = nil -- { MinX = -500, MaxX = 500, MinZ = -500, MaxZ = 500 }
+-- Câmera da miniatura
+MapConfig.Camera = {
+	Yaw = 45,        -- graus em torno do eixo vertical
+	Pitch = 55,      -- graus olhando para baixo
+	FieldOfView = 30,
+	FocusZoom = 0.38, -- fração da distância da visão geral ao focar um destino
+}
+
+-- Rótulo (como a "raridade" dos cards) por tipo de destino
+MapConfig.KindLabels = {
+	spawn = "INÍCIO",
+	building = "PRÉDIO",
+	extra = "PASSEIO",
+	custom = "LOCAL",
+	home = "SUA CASA",
+}
 
 return MapConfig

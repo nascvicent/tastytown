@@ -36,10 +36,7 @@ Theme.Colors = {
 
 	-- Mapa
 	MapGround = Color3.fromRGB(129, 201, 120),
-	MapGroundDark = Color3.fromRGB(104, 178, 98),
 	MapHome = Color3.fromRGB(52, 152, 219),
-	MapRoad = Color3.fromRGB(242, 205, 160),   -- mesmo bege das ruas do jogo
-	MapWater = Color3.fromRGB(252, 250, 242),  -- leite
 	MapYou = Color3.fromRGB(255, 105, 180),
 }
 

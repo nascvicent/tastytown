@@ -1,12 +1,18 @@
 --[[
-	Mapa (cliente) — abre pelo MapButton da HudGui e teleporta dentro do place.
-	Visual no mesmo estilo do Shop/Inventário (Shared/UI).
+	Mapa (cliente) — miniatura 3D da cidade com etiquetas de UI.
+
+	• A cidade vem de ReplicatedStorage.MapMiniature (montada pelo MapService)
+	  e é desenhada num ViewportFrame; arrastar gira a vista.
+	• As etiquetas são UI comum, posicionadas projetando o ponto 3D na câmera.
+	• O card da direita mostra o destino girando em 3D, como os cards do Shop.
+	Abre pelo MapButton da HudGui e teleporta dentro do place (validação no servidor).
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -27,14 +33,21 @@ local gui = script.Parent
 local new = Components.new
 
 local STUDS_TO_METERS = 0.28
+local CAMERA = MapConfig.Camera
 
--- Cor de destaque de cada tipo de destino (borda do pin e do card)
+-- Cor de destaque de cada tipo de destino (etiqueta e borda do card)
 local KIND_COLORS = {
 	spawn = Theme.Rarity.Legendary.Color,
-	building = Colors.Panel,
-	extra = Color3.fromRGB(120, 190, 255),
-	custom = Colors.TileSelected,
+	building = Color3.fromRGB(235, 125, 80),
+	extra = Color3.fromRGB(90, 170, 235),
+	custom = Color3.fromRGB(200, 120, 220),
 	home = Colors.MapHome,
+}
+
+-- Ícone do card quando o destino não tem modelo na miniatura
+local FALLBACK_IMAGES = {
+	home = Theme.Images.House,
+	spawn = Theme.Images.Tag,
 }
 
 -- ═══════════════════════════════════════════
@@ -56,80 +69,88 @@ new("UIPadding", {
 	Parent = page,
 })
 
--- Área do mapa (esquerda)
+-- Moldura da miniatura (esquerda). Sem ClipsDescendants: recorte arredondado
+-- impede o ViewportFrame de renderizar; o próprio viewport já recorta o 3D.
 local canvas = new("Frame", {
 	Name = "MapCanvas",
 	Size = UDim2.fromScale(0.63, 1),
-	BackgroundColor3 = Colors.MapGround,
-	ClipsDescendants = true,
+	BackgroundTransparency = 1,
 	Parent = page,
+})
+
+local viewport = new("ViewportFrame", {
+	Name = "City",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundColor3 = Colors.MapGround,
+	Ambient = Color3.fromRGB(175, 175, 175),
+	LightColor = Color3.fromRGB(255, 250, 240),
+	LightDirection = Vector3.new(-0.6, -1, -0.4),
+	Active = true,
+	Parent = canvas,
+}, {
+	Components.corner(Theme.Radius.Page),
+})
+-- Borda branca por cima do viewport
+new("Frame", {
+	Name = "Border",
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	ZIndex = 8,
+	Parent = canvas,
 }, {
 	Components.corner(Theme.Radius.Page),
 	Components.stroke(Colors.White, 3),
-	new("UIGradient", {
-		Rotation = 45,
-		Color = ColorSequence.new(Colors.MapGround, Colors.MapGroundDark),
-	}),
 })
 
-if MapConfig.MapImage ~= "" then
-	new("ImageLabel", {
-		Name = "MapImage",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		Image = MapConfig.MapImage,
-		ScaleType = Enum.ScaleType.Stretch,
-		Parent = canvas,
-	})
-end
+local worldModel = new("WorldModel", { Parent = viewport })
+local camera = new("Camera", { FieldOfView = CAMERA.FieldOfView, Parent = viewport })
+viewport.CurrentCamera = camera
 
--- Ruas e rio (abaixo dos pins); mesma área do pinLayer para usar a mesma projeção
-local shapesLayer = new("Frame", {
-	Name = "Shapes",
+local loadingLabel = Components.label({
 	AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromScale(0.84, 0.8),
+	Size = UDim2.fromScale(0.6, 0.1),
+	Text = "Carregando a cidade...",
+	ZIndex = 9,
+	Parent = canvas,
+})
+Components.stroke(Colors.Header, 2, Enum.ApplyStrokeMode.Contextual).Parent = loadingLabel
+
+-- Camada das etiquetas, alinhada ao viewport
+local labelLayer = new("Frame", {
+	Name = "Labels",
+	Size = UDim2.fromScale(1, 1),
 	BackgroundTransparency = 1,
-	ZIndex = 2,
+	ZIndex = 5,
 	Parent = canvas,
 })
 
--- Margem interna para os pins não encostarem na borda
-local pinLayer = new("Frame", {
-	Name = "Pins",
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.5),
-	Size = UDim2.fromScale(0.84, 0.8),
-	BackgroundTransparency = 1,
-	ZIndex = 3,
-	Parent = canvas,
+-- Botão "VER TUDO" (volta à visão geral)
+local overviewButton = Components.ActionButton(canvas, {
+	Name = "Overview",
+	Text = "VER TUDO",
+	Color = Colors.Header,
+	AnchorPoint = Vector2.new(0, 0),
+	Position = UDim2.fromScale(0.03, 0.04),
+	Size = UDim2.fromScale(0.26, 0.09),
 })
+overviewButton.ZIndex = 9
+overviewButton.Visible = false
 
-local youMarker = new("Frame", {
-	Name = "You",
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Size = UDim2.fromScale(0.05, 0.05),
-	SizeConstraint = Enum.SizeConstraint.RelativeYY,
-	BackgroundColor3 = Colors.MapYou,
-	Visible = false,
-	ZIndex = 6,
-	Parent = pinLayer,
-}, {
-	Components.corner(999),
-	Components.stroke(Colors.White, 2),
-})
-local youLabel = Components.label({
+local hint = Components.label({
 	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 0, -2),
-	Size = UDim2.fromScale(3.2, 1.3),
-	Text = "VOCÊ",
-	TextColor3 = Colors.MapYou,
-	ZIndex = 6,
-	Parent = youMarker,
+	Position = UDim2.fromScale(0.5, 0.97),
+	Size = UDim2.fromScale(0.7, 0.06),
+	Text = "Arraste para girar • Toque num local",
+	TextTransparency = 0.15,
+	ZIndex = 9,
+	Parent = canvas,
 })
-Components.stroke(Colors.White, 2, Enum.ApplyStrokeMode.Contextual).Parent = youLabel
+Components.stroke(Colors.Header, 1.5, Enum.ApplyStrokeMode.Contextual).Parent = hint
 
+-- ═══════════════════════════════════════════
 -- Card de detalhes (direita), no estilo dos cards do Shop
+-- ═══════════════════════════════════════════
 local details = new("Frame", {
 	Name = "Details",
 	AnchorPoint = Vector2.new(1, 0),
@@ -145,23 +166,37 @@ local detailsGradient = new("UIGradient", {
 	Color = ColorSequence.new(Colors.White, Colors.White),
 	Parent = details,
 })
-local detailsStroke = Components.stroke(Colors.Panel, 3)
+local detailsStroke = Components.stroke(Colors.PanelStroke, 3)
 detailsStroke.Parent = details
 
-local detailIcon = Components.label({
-	Name = "Icon",
+local kindLabel = Components.label({
+	Name = "Kind",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.fromScale(0.5, 0.06),
-	Size = UDim2.fromScale(0.5, 0.24),
-	Text = "🗺️",
+	Position = UDim2.fromScale(0.5, 0.03),
+	Size = UDim2.fromScale(0.6, 0.065),
+	Text = "MAPA",
+	TextColor3 = Colors.PanelStroke,
+	ZIndex = 3,
 	Parent = details,
 })
+
+local previewHolder = new("Frame", {
+	Name = "Preview",
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.fromScale(0.5, 0.1),
+	Size = UDim2.fromScale(0.9, 0.36),
+	BackgroundTransparency = 1,
+	ZIndex = 2,
+	Parent = details,
+})
+
 local detailName = Components.label({
 	Name = "Name",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.fromScale(0.5, 0.33),
-	Size = UDim2.fromScale(0.9, 0.12),
+	Position = UDim2.fromScale(0.5, 0.47),
+	Size = UDim2.fromScale(0.9, 0.1),
 	Text = "Escolha um local",
+	ZIndex = 3,
 	Parent = details,
 })
 local detailNameStroke = Components.stroke(Colors.Header, 2, Enum.ApplyStrokeMode.Contextual)
@@ -170,32 +205,33 @@ detailNameStroke.Parent = detailName
 local detailDescription = Components.label({
 	Name = "Description",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.fromScale(0.5, 0.47),
-	Size = UDim2.fromScale(0.88, 0.2),
-	Text = "Toque em um ponto do mapa para ver os detalhes.",
+	Position = UDim2.fromScale(0.5, 0.585),
+	Size = UDim2.fromScale(0.88, 0.14),
+	Text = "Toque numa etiqueta do mapa para ver os detalhes.",
 	Font = Theme.BodyFont,
 	TextColor3 = Colors.Text,
-	TextScaled = true,
 	TextWrapped = true,
 	TextYAlignment = Enum.TextYAlignment.Top,
+	ZIndex = 3,
 	Parent = details,
 })
-new("UITextSizeConstraint", { MaxTextSize = 18, Parent = detailDescription })
+new("UITextSizeConstraint", { MaxTextSize = 16, Parent = detailDescription })
 
 local detailDistance = Components.label({
 	Name = "Distance",
 	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.fromScale(0.5, 0.69),
-	Size = UDim2.fromScale(0.8, 0.07),
+	Position = UDim2.fromScale(0.5, 0.735),
+	Size = UDim2.fromScale(0.7, 0.055),
 	Text = "",
 	TextColor3 = Colors.TextSoft,
+	ZIndex = 3,
 	Parent = details,
 })
 
 local goButton, setGoStyle = Components.ActionButton(details, {
 	Name = "GoButton",
-	Size = UDim2.fromScale(0.86, 0.15),
-	Position = UDim2.fromScale(0.5, 0.95),
+	Size = UDim2.fromScale(0.86, 0.14),
+	Position = UDim2.fromScale(0.5, 0.96),
 })
 setGoStyle("IR!", Colors.Gray, false)
 
@@ -203,13 +239,18 @@ setGoStyle("IR!", Colors.Gray, false)
 -- Estado
 -- ═══════════════════════════════════════════
 local destinations = {}
-local mapShapes = nil -- { roads = {...}, water = {...} } (vem do servidor uma vez)
-local shapeFrames = {} -- { { frame, shape } }
+local labels = {} -- [id] = { holder, pill, stem, stroke, scale, dest }
 local selected = nil
-local pins = {} -- [id] = { button, stroke, scale }
 local teleporting = false
-local projection = nil -- função world (x,z) -> UDim2
-local pixelsPerStud = 0
+local cityBuilt = false
+local cityModel = nil
+
+-- Câmera: foco/distância atuais e alvo (interpolados a cada frame)
+local overviewFocus, overviewDistance = Vector3.zero, 300
+local focus, distance = Vector3.zero, 300
+local targetFocus, targetDistance = Vector3.zero, 300
+local yaw = math.rad(CAMERA.Yaw)
+local pitch = math.rad(CAMERA.Pitch)
 
 local fade = Components.ScreenFade(playerGui)
 local setCameraEffects = Components.CameraEffects("MapBlur")
@@ -219,92 +260,169 @@ local function isOpen()
 end
 
 -- ═══════════════════════════════════════════
--- Projeção mundo -> mapa
+-- Miniatura 3D
 -- ═══════════════════════════════════════════
--- Retorna a projeção (x,z) -> posição no mapa e quantos pixels vale 1 stud.
--- Sem imagem: enquadra destinos + ruas mantendo a proporção real (sem esticar).
-local function buildProjection()
-	local layerSize = pinLayer.AbsoluteSize
-	local bounds = MapConfig.WorldBounds
-	if MapConfig.MapImage ~= "" and bounds then
-		local rangeX, rangeZ = bounds.MaxX - bounds.MinX, bounds.MaxZ - bounds.MinZ
-		return function(x, z)
-			return UDim2.fromScale((x - bounds.MinX) / rangeX, (z - bounds.MinZ) / rangeZ)
-		end, layerSize.X / rangeX
+local function buildCity()
+	if cityBuilt then return true end
+	local source = ReplicatedStorage:WaitForChild("MapMiniature", 15)
+	if not source then
+		loadingLabel.Text = "Mapa indisponível"
+		return false
 	end
 
-	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
-	local function include(x, z, radius)
-		minX = math.min(minX, x - radius)
-		maxX = math.max(maxX, x + radius)
-		minZ = math.min(minZ, z - radius)
-		maxZ = math.max(maxZ, z + radius)
+	cityModel = new("Model", { Name = "City" })
+	for _, child in ipairs(source:GetChildren()) do
+		child:Clone().Parent = cityModel
 	end
-	for _, dest in ipairs(destinations) do
-		include(dest.x, dest.z, 0)
-	end
-	if mapShapes then
-		for _, list in pairs(mapShapes) do
-			for _, shape in ipairs(list) do
-				include(shape.x, shape.z, math.max(shape.w, shape.l) / 2)
-			end
-		end
-	end
-	if minX == math.huge then return nil, 0 end
+	cityModel.Parent = worldModel
 
-	local rangeX = math.max(maxX - minX, 50)
-	local rangeZ = math.max(maxZ - minZ, 50)
-	local centerX, centerZ = (minX + maxX) / 2, (minZ + maxZ) / 2
+	-- Chão verde sob a cidade (o terreno não aparece em ViewportFrame)
+	local cf, size = cityModel:GetBoundingBox()
+	new("Part", {
+		Name = "Ground",
+		Anchored = true,
+		Size = Vector3.new(size.X + 120, 1, size.Z + 120),
+		CFrame = CFrame.new(cf.Position.X, cf.Position.Y - size.Y / 2 - 0.6, cf.Position.Z),
+		Color = Colors.MapGround,
+		Material = Enum.Material.SmoothPlastic,
+		Parent = worldModel,
+	})
 
-	local layerAspect = (layerSize.Y > 0) and layerSize.X / layerSize.Y or 1
-	local worldAspect = rangeX / rangeZ
-	local spanX, spanZ = 1, 1
-	if worldAspect > layerAspect then
-		spanZ = layerAspect / worldAspect
-	else
-		spanX = worldAspect / layerAspect
-	end
+	-- Enquadramento da visão geral: cabe a cidade inteira na vertical do FOV
+	overviewFocus = cf.Position
+	local radius = math.max(size.X, size.Z) / 2
+	overviewDistance = radius / math.tan(math.rad(CAMERA.FieldOfView) / 2) * 0.95
+	focus, distance = overviewFocus, overviewDistance * 1.25 -- entra com um leve zoom
+	targetFocus, targetDistance = overviewFocus, overviewDistance
 
-	return function(x, z)
-		return UDim2.fromScale(
-			0.5 + (x - centerX) / rangeX * spanX,
-			0.5 + (z - centerZ) / rangeZ * spanZ
-		)
-	end, layerSize.X * spanX / rangeX
+	cityBuilt = true
+	loadingLabel.Visible = false
+	return true
 end
 
--- Cria os retângulos das ruas/rio (uma vez); o tamanho é ajustado em layoutMap
-local function buildShapes()
-	for _, entry in ipairs(shapeFrames) do
-		entry.frame:Destroy()
-	end
-	shapeFrames = {}
-	if not mapShapes then return end
-
-	-- Sem borda: rio e ruas são feitos de várias Parts e as emendas apareceriam como linhas
-	local function addAll(list, color, zIndex)
-		for _, shape in ipairs(list or {}) do
-			local frame = new("Frame", {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Rotation = shape.r,
-				BackgroundColor3 = color,
-				BorderSizePixel = 0,
-				ZIndex = zIndex,
-				Parent = shapesLayer,
-			})
-			table.insert(shapeFrames, { frame = frame, shape = shape })
-		end
-	end
-	addAll(mapShapes.water, Colors.MapWater, 1)
-	addAll(mapShapes.roads, Colors.MapRoad, 2)
+local function cameraCFrame()
+	return CFrame.new(focus)
+		* CFrame.Angles(0, yaw, 0)
+		* CFrame.Angles(-pitch, 0, 0)
+		* CFrame.new(0, 0, distance)
 end
 
-local function clampPosition(position)
-	return UDim2.fromScale(math.clamp(position.X.Scale, 0, 1), math.clamp(position.Y.Scale, 0, 1))
+-- Projeta um ponto 3D na tela do viewport (escala 0..1); nil se atrás da câmera
+local function project(worldPos)
+	local p = camera.CFrame:PointToObjectSpace(worldPos)
+	if p.Z >= 0 then return nil end
+	local size = viewport.AbsoluteSize
+	if size.Y <= 0 then return nil end
+	local tanY = math.tan(math.rad(camera.FieldOfView) / 2)
+	local aspect = size.X / size.Y
+	local x = (p.X / -p.Z) / (tanY * aspect)
+	local y = (p.Y / -p.Z) / tanY
+	return 0.5 + x / 2, 0.5 - y / 2
 end
 
 -- ═══════════════════════════════════════════
--- Seleção / detalhes
+-- Etiquetas (UI presa aos pontos 3D)
+-- ═══════════════════════════════════════════
+local function clearLabels()
+	for _, label in pairs(labels) do
+		label.holder:Destroy()
+	end
+	labels = {}
+end
+
+local function styleLabel(label, isSelected)
+	local color = KIND_COLORS[label.dest.kind] or Colors.PanelStroke
+	label.pill.BackgroundColor3 = isSelected and color or Colors.White
+	label.stem.BackgroundColor3 = isSelected and color or Colors.White
+	label.pill.TextColor3 = isSelected and Colors.White or Theme.Darken(color, 0.25)
+	label.holder.ZIndex = isSelected and 7 or 6
+	TweenService:Create(label.scale, TweenInfo.new(0.15), { Scale = isSelected and 1.15 or 1 }):Play()
+end
+
+local selectDestination -- declarado abaixo
+
+local function createLabel(dest)
+	local color = KIND_COLORS[dest.kind] or Colors.PanelStroke
+
+	-- holder: ponto de ancoragem (base da haste) na posição projetada
+	local holder = new("Frame", {
+		Name = dest.id,
+		AnchorPoint = Vector2.new(0.5, 1),
+		Size = UDim2.fromOffset(0, 0),
+		BackgroundTransparency = 1,
+		ZIndex = 6,
+		Parent = labelLayer,
+	})
+	local scale = new("UIScale", { Parent = holder })
+
+	local stem = new("Frame", {
+		Name = "Stem",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0, -7),
+		Size = UDim2.fromOffset(11, 11),
+		Rotation = 45,
+		BackgroundColor3 = Colors.White,
+		BorderSizePixel = 0,
+		ZIndex = 6,
+		Parent = holder,
+	})
+	Components.stroke(color, 2).Parent = stem
+
+	local pill = new("TextButton", {
+		Name = "Pill",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -10),
+		Size = UDim2.fromOffset(0, 26),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundColor3 = Colors.White,
+		AutoButtonColor = false,
+		Font = Theme.Font,
+		Text = dest.name,
+		TextSize = 15,
+		TextColor3 = Theme.Darken(color, 0.25),
+		ZIndex = 7,
+		Parent = holder,
+	}, {
+		Components.corner(999),
+		new("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) }),
+	})
+	local stroke = Components.stroke(color, 2.5)
+	stroke.Parent = pill
+
+	pill.MouseButton1Click:Connect(function()
+		popSound:Play()
+		selectDestination(dest)
+	end)
+
+	labels[dest.id] = { holder = holder, pill = pill, stem = stem, stroke = stroke, scale = scale, dest = dest }
+end
+
+-- "VOCÊ": bolinha rosa na posição do personagem
+local youMarker = new("Frame", {
+	Name = "You",
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Size = UDim2.fromOffset(14, 14),
+	BackgroundColor3 = Colors.MapYou,
+	Visible = false,
+	ZIndex = 6,
+	Parent = labelLayer,
+}, {
+	Components.corner(999),
+	Components.stroke(Colors.White, 2),
+})
+local youLabel = Components.label({
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 0, -3),
+	Size = UDim2.fromOffset(60, 18),
+	Text = "VOCÊ",
+	TextColor3 = Colors.MapYou,
+	ZIndex = 6,
+	Parent = youMarker,
+})
+Components.stroke(Colors.White, 2, Enum.ApplyStrokeMode.Contextual).Parent = youLabel
+
+-- ═══════════════════════════════════════════
+-- Detalhes
 -- ═══════════════════════════════════════════
 local function distanceTo(dest)
 	local character = player.Character
@@ -314,27 +432,65 @@ local function distanceTo(dest)
 	return math.floor(d * STUDS_TO_METERS + 0.5)
 end
 
-local function selectDestination(dest)
-	selected = dest
-	for id, pin in pairs(pins) do
-		local isSelected = dest and id == dest.id
-		TweenService:Create(pin.scale, TweenInfo.new(0.15), { Scale = isSelected and 1.25 or 1 }):Play()
-		pin.button.ZIndex = isSelected and 5 or 4
+local function findMiniatureModel(id)
+	local source = ReplicatedStorage:FindFirstChild("MapMiniature")
+	if not source then return nil end
+	for _, child in ipairs(source:GetChildren()) do
+		if child:GetAttribute("DestinationId") == id and child:IsA("Model") then
+			return child
+		end
 	end
+	return nil
+end
+
+local function showPreview(dest)
+	previewHolder:ClearAllChildren()
+	if not dest then return end
+
+	local model = findMiniatureModel(dest.id)
+	if model then
+		Components.Viewport(previewHolder, model, {
+			distanceMultiplier = 0.75,
+			cameraHeight = 0.55,
+		}, isOpen)
+	else
+		new("ImageLabel", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.fromScale(0.75, 0.75),
+			BackgroundTransparency = 1,
+			Image = FALLBACK_IMAGES[dest.kind] or Theme.Images.House,
+			ScaleType = Enum.ScaleType.Fit,
+			ZIndex = 3,
+			Parent = previewHolder,
+		})
+	end
+end
+
+selectDestination = function(dest)
+	selected = dest
+	for id, label in pairs(labels) do
+		styleLabel(label, dest ~= nil and id == dest.id)
+	end
+	showPreview(dest)
 
 	if not dest then
-		detailIcon.Text = "🗺️"
+		kindLabel.Text = "MAPA"
+		kindLabel.TextColor3 = Colors.PanelStroke
 		detailName.Text = "Escolha um local"
-		detailDescription.Text = "Toque em um ponto do mapa para ver os detalhes."
+		detailDescription.Text = "Toque numa etiqueta do mapa para ver os detalhes."
 		detailDistance.Text = ""
-		detailsStroke.Color = Colors.Panel
+		detailsStroke.Color = Colors.PanelStroke
 		detailsGradient.Color = ColorSequence.new(Colors.White, Colors.White)
 		setGoStyle("IR!", Colors.Gray, false)
+		targetFocus, targetDistance = overviewFocus, overviewDistance
+		overviewButton.Visible = false
 		return
 	end
 
-	local color = KIND_COLORS[dest.kind] or Colors.Panel
-	detailIcon.Text = dest.icon
+	local color = KIND_COLORS[dest.kind] or Colors.PanelStroke
+	kindLabel.Text = MapConfig.KindLabels[dest.kind] or "LOCAL"
+	kindLabel.TextColor3 = color
 	detailName.Text = dest.name
 	detailNameStroke.Color = Theme.Darken(color, 0.3)
 	detailDescription.Text = dest.description ~= "" and dest.description or " "
@@ -342,89 +498,23 @@ local function selectDestination(dest)
 	detailsGradient.Color = ColorSequence.new(Colors.White, color:Lerp(Colors.White, 0.7))
 
 	local meters = distanceTo(dest)
-	detailDistance.Text = meters and ("📍 ~" .. meters .. " m daqui") or ""
+	detailDistance.Text = meters and ("~" .. meters .. " m daqui") or ""
 	setGoStyle("IR!", dest.kind == "home" and Colors.Blue or Colors.Green, true)
+
+	-- Câmera voa até o destino
+	targetFocus = Vector3.new(dest.x, (dest.y + overviewFocus.Y) / 2, dest.z)
+	targetDistance = overviewDistance * CAMERA.FocusZoom
+	overviewButton.Visible = true
 end
+
+overviewButton.MouseButton1Click:Connect(function()
+	popSound:Play()
+	selectDestination(nil)
+end)
 
 -- ═══════════════════════════════════════════
--- Pins
+-- Dados
 -- ═══════════════════════════════════════════
-local function clearPins()
-	for _, pin in pairs(pins) do
-		pin.button:Destroy()
-	end
-	pins = {}
-end
-
-local function createPin(dest)
-	local color = KIND_COLORS[dest.kind] or Colors.Panel
-	local button = new("TextButton", {
-		Name = dest.id,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Size = UDim2.fromScale(0.13, 0.13),
-		SizeConstraint = Enum.SizeConstraint.RelativeYY,
-		BackgroundColor3 = Colors.White,
-		AutoButtonColor = false,
-		Font = Theme.Font,
-		Text = dest.icon,
-		TextScaled = true,
-		ZIndex = 4,
-		Parent = pinLayer,
-	}, {
-		Components.corner(999),
-		new("UIPadding", {
-			PaddingTop = UDim.new(0.18, 0),
-			PaddingBottom = UDim.new(0.18, 0),
-			PaddingLeft = UDim.new(0.18, 0),
-			PaddingRight = UDim.new(0.18, 0),
-		}),
-	})
-	local stroke = Components.stroke(color, 3)
-	stroke.Parent = button
-
-	local caption = Components.label({
-		Name = "Caption",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 1, 4),
-		Size = UDim2.fromScale(3, 0.55),
-		Text = dest.name,
-		ZIndex = 4,
-		Parent = button,
-	})
-	Components.stroke(Theme.Darken(color, 0.35), 2, Enum.ApplyStrokeMode.Contextual).Parent = caption
-
-	local scale = new("UIScale", { Parent = button })
-	button.MouseButton1Click:Connect(function()
-		popSound:Play()
-		selectDestination(dest)
-	end)
-
-	pins[dest.id] = { button = button, stroke = stroke, scale = scale }
-end
-
-local function layoutMap()
-	projection, pixelsPerStud = buildProjection()
-	if not projection then return end
-
-	for _, entry in ipairs(shapeFrames) do
-		local shape = entry.shape
-		entry.frame.Position = projection(shape.x, shape.z)
-		entry.frame.Size = UDim2.fromOffset(
-			math.max(shape.w * pixelsPerStud, 2),
-			math.max(shape.l * pixelsPerStud, 2)
-		)
-	end
-
-	for _, dest in ipairs(destinations) do
-		local pin = pins[dest.id]
-		if pin then
-			pin.button.Position = clampPosition(projection(dest.x, dest.z))
-		end
-	end
-end
-
-pinLayer:GetPropertyChangedSignal("AbsoluteSize"):Connect(layoutMap)
-
 local function loadDestinations()
 	local ok, result = pcall(function()
 		return GetDestinations:InvokeServer()
@@ -434,19 +524,12 @@ local function loadDestinations()
 		return
 	end
 
-	-- Ruas e rio não mudam durante o jogo: desenha só na primeira vez
-	if not mapShapes then
-		mapShapes = { roads = result.roads or {}, water = result.water or {} }
-		buildShapes()
-	end
-
 	local previousId = selected and selected.id
 	destinations = result.destinations
-	clearPins()
+	clearLabels()
 	for _, dest in ipairs(destinations) do
-		createPin(dest)
+		createLabel(dest)
 	end
-	layoutMap()
 
 	local keep = nil
 	for _, dest in ipairs(destinations) do
@@ -455,25 +538,72 @@ local function loadDestinations()
 	selectDestination(keep)
 end
 
--- Marcador "VOCÊ" acompanha o personagem enquanto o mapa está aberto
-local markerAccumulator = 0
-RunService.Heartbeat:Connect(function(dt)
-	if not isOpen() then return end
-	markerAccumulator += dt
-	if markerAccumulator < 0.2 then return end
-	markerAccumulator = 0
+-- ═══════════════════════════════════════════
+-- Arrastar para girar
+-- ═══════════════════════════════════════════
+local dragging = false
+local lastDragX = 0
+
+viewport.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		lastDragX = input.Position.X
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if not dragging then return end
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		yaw -= (input.Position.X - lastDragX) * 0.008
+		lastDragX = input.Position.X
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = false
+	end
+end)
+
+-- ═══════════════════════════════════════════
+-- Loop: câmera suave + etiquetas seguindo os pontos 3D
+-- ═══════════════════════════════════════════
+local distanceAccumulator = 0
+
+RunService.RenderStepped:Connect(function(dt)
+	if not isOpen() or not cityBuilt then return end
+
+	local alpha = 1 - math.exp(-dt * 6)
+	focus = focus:Lerp(targetFocus, alpha)
+	distance += (targetDistance - distance) * alpha
+	camera.CFrame = cameraCFrame()
+
+	for _, label in pairs(labels) do
+		local dest = label.dest
+		local sx, sy = project(Vector3.new(dest.x, dest.y + 2, dest.z))
+		local visible = sx ~= nil and sx > -0.05 and sx < 1.05 and sy > -0.05 and sy < 1.05
+		label.holder.Visible = visible
+		if visible then
+			label.holder.Position = UDim2.fromScale(sx, sy)
+		end
+	end
 
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
-	if root and projection then
-		youMarker.Position = clampPosition(projection(root.Position.X, root.Position.Z))
-		youMarker.Visible = true
-	else
-		youMarker.Visible = false
+	local sx, sy = nil, nil
+	if root then
+		sx, sy = project(root.Position)
 	end
-	if selected then
+	youMarker.Visible = sx ~= nil and sx > 0 and sx < 1 and sy > 0 and sy < 1
+	if youMarker.Visible then
+		youMarker.Position = UDim2.fromScale(sx, sy)
+	end
+
+	distanceAccumulator += dt
+	if selected and distanceAccumulator > 0.3 then
+		distanceAccumulator = 0
 		local meters = distanceTo(selected)
-		detailDistance.Text = meters and ("📍 ~" .. meters .. " m daqui") or ""
+		detailDistance.Text = meters and ("~" .. meters .. " m daqui") or ""
 	end
 end)
 
@@ -493,7 +623,12 @@ local function setOpen(open)
 		TweenService:Create(openScale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Scale = 1,
 		}):Play()
-		task.spawn(loadDestinations)
+		task.spawn(function()
+			buildCity()
+			loadDestinations()
+		end)
+	else
+		dragging = false
 	end
 end
 

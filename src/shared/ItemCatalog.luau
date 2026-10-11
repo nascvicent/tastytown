@@ -63,7 +63,7 @@ ItemCatalog.Items = {
 			Price = 10000,
 			Rarity = "Rare",
 			ModelName = "SushiHouse",
-			Camera = { offsetY = 0, distanceMultiplier = 0.4, cameraHeight = 0.7, cameraAngleX = math.rad(10), lookAtOffsetY = -5 },
+			Camera = { offsetY = 0, distanceMultiplier = 0.45, cameraHeight = 0.6, cameraAngleX = 0, lookAtOffsetY = 0 },
 			Description = "🍣 Casa estilo japonês moderna\n\n• 2 andares\n• Jardim zen\n• Garagem para 2 carros\n\n🎌 Design único!",
 		},
 		{
@@ -71,7 +71,7 @@ ItemCatalog.Items = {
 			Price = 25000,
 			Rarity = "Legendary",
 			ModelName = "CandyMansion",
-			Camera = { offsetY = -20, distanceMultiplier = 0.7, cameraHeight = 0.3, cameraAngleX = math.rad(10), lookAtOffsetY = -5 },
+			Camera = { offsetY = 0, distanceMultiplier = 0.6, cameraHeight = 0.45, cameraAngleX = 0, lookAtOffsetY = 0 },
 			Description = "🏰 Mansão de doces dos sonhos!\n\n• 3 andares\n• Piscina de chocolate\n• Garagem para 5 carros\n\n✨ Status MÁXIMO!",
 		},
 	},
