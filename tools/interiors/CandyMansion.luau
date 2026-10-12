@@ -80,12 +80,16 @@ return function(rbx)
 	-- ═══════════════════════════════════════════
 	-- Caixa gigante em volta (fundo + luz, como a CaixaResidencial do interior inicial)
 	-- ═══════════════════════════════════════════
-	local BOX, BOX_H, BOX_FLOOR = 420, 110, -8
-	k:box(box, "Chao", V(BOX, 2, BOX), CF(0, BOX_FLOOR - 1, 0), C.boxFloor)
-	k:box(box, "Teto", V(BOX, 2, BOX), CF(0, BOX_FLOOR + BOX_H + 1, 0), C.boxWall)
+	-- Mesmas proporções da CaixaResidencial do interior inicial: caixa ~600 x 640 com o
+	-- cômodo perto do canto do lado da câmera (+X/-Z). Assim as paredes do fundo ficam
+	-- longe e viram só o fundo lilás, sem aparecer as quinas da caixa.
+	local BOX_X, BOX_Z, BOX_H, BOX_FLOOR = 600, 640, 110, -9
+	local BOX_C = V(-220, 0, 222)
+	k:box(box, "Chao", V(BOX_X, 2, BOX_Z), CF(BOX_C.X, BOX_FLOOR - 1, BOX_C.Z), C.boxFloor)
+	k:box(box, "Teto", V(BOX_X, 2, BOX_Z), CF(BOX_C.X, BOX_FLOOR + BOX_H + 1, BOX_C.Z), C.boxWall)
 	for _, side in ipairs({ -1, 1 }) do
-		k:box(box, "Parede", V(4, BOX_H, BOX), CF(side * (BOX / 2 + 2), BOX_FLOOR + BOX_H / 2, 0), C.boxWall)
-		k:box(box, "Parede", V(BOX, BOX_H, 4), CF(0, BOX_FLOOR + BOX_H / 2, side * (BOX / 2 + 2)), C.boxWall)
+		k:box(box, "Parede", V(4, BOX_H, BOX_Z), CF(BOX_C.X + side * (BOX_X / 2 + 2), BOX_FLOOR + BOX_H / 2, BOX_C.Z), C.boxWall)
+		k:box(box, "Parede", V(BOX_X, BOX_H, 4), CF(BOX_C.X, BOX_FLOOR + BOX_H / 2, BOX_C.Z + side * (BOX_Z / 2 + 2)), C.boxWall)
 	end
 
 	-- ═══════════════════════════════════════════
@@ -191,10 +195,17 @@ return function(rbx)
 	for i = 1, STORY do
 		local z0 = STAIR_Z0 + (i - 1) * STEP_DEPTH
 		local top = FLOOR + i
+		-- Degraus só visuais: quem colide é a rampa invisível abaixo
 		k:box(stairs, "Degrau", V(STAIR_X1 - STAIR_X0, top - FLOOR, STEP_DEPTH), CF((STAIR_X0 + STAIR_X1) / 2, (top + FLOOR) / 2, z0 + STEP_DEPTH / 2),
-			(i % 2 == 0) and C.wafer or C.cream)
-		k:box(stairs, "Nariz", V(STAIR_X1 - STAIR_X0, 0.35, 0.35), CF((STAIR_X0 + STAIR_X1) / 2, top - 0.15, z0 + 0.1), C.pink)
+			(i % 2 == 0) and C.wafer or C.cream, { collide = false })
+		k:box(stairs, "Nariz", V(STAIR_X1 - STAIR_X0, 0.35, 0.35), CF((STAIR_X0 + STAIR_X1) / 2, top - 0.15, z0 + 0.1), C.pink, { collide = false })
 	end
+	-- Rampa passando pelo meio de cada degrau (o pé fica no máximo 0,5 acima/abaixo do degrau)
+	local rampLowZ = STAIR_Z0 - STEP_DEPTH / 2
+	local rampHighZ = STAIR_Z0 + (STORY - 0.5) * STEP_DEPTH
+	k:ramp(stairs, "RampaEscada", STAIR_X0, STAIR_X1, rampLowZ, FLOOR, rampHighZ, UP)
+	-- Patamar invisível entre o fim da rampa e o piso do mezanino
+	k:box(stairs, "RampaTopo", V(STAIR_X1 - STAIR_X0, 0.4, -rampHighZ + 0.4), CF((STAIR_X0 + STAIR_X1) / 2, UP - 0.2, rampHighZ / 2), C.white, { transparency = 1 })
 	-- Corrimão no lado aberto da escada
 	local railBottom = V(STAIR_X1 - 0.3, FLOOR + 3.5, STAIR_Z0 + 0.5)
 	local railTop = V(STAIR_X1 - 0.3, UP + 3, -0.2)
@@ -241,7 +252,7 @@ return function(rbx)
 		local disc = k:cyl(parent, "Pirulito", 0.6, discD, center, C.pink)
 		k:cyl(parent, "PirulitoAnel", 0.7, discD * 0.66, center, C.white)
 		k:cyl(parent, "PirulitoMiolo", 0.8, discD * 0.33, center, C.mint, { material = NEON })
-		if withLight then k:light(disc, { range = 18, brightness = 1.3, color = k:rgb(255, 215, 235) }) end
+		if withLight then k:light(disc, { range = 12, brightness = 0.7, color = k:rgb(255, 215, 235) }) end
 	end
 
 	local function gumdrop(parent, p, color)
@@ -484,9 +495,7 @@ return function(rbx)
 	-- Teto invisível para ninguém subir em cima das paredes
 	k:box(barriers, "BarreiraTeto", V(HALF * 2 + 4, 1, HALF * 2 + 4), CF(0, WALL_TOP + 6, 0), C.white, { transparency = 1 })
 
-	-- Luz geral suave e quente
-	local fill = k:box(lights, "LuzGeral", V(1, 1, 1), CF(0, WALL_TOP + 10, 0), C.white, { transparency = 1, collide = false })
-	k:light(fill, { range = 60, brightness = 0.8, color = k:rgb(255, 225, 235) })
+	-- Sem luz geral extra: a iluminação vem da caixa (como no interior inicial) e das luminárias
 
 	root.WorldPivot = CF(0, FLOOR, 0)
 	return root

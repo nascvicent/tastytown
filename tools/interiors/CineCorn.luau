@@ -482,6 +482,12 @@ return function(rbx)
 	end
 	local pitStart = landingEnd + ROWS * ROW_DEPTH
 	local pitTop = -(ROWS + 1) * ROW_DROP
+
+	-- Rampas invisíveis nos corredores (central e laterais): passam pela quina de cada
+	-- degrau, então personagens pequenos sobem de volta sem travar nos degraus
+	for _, aisle in ipairs({ { -4.4, 4.4 }, { -HALF, -31.6 }, { 31.6, HALF } }) do
+		k:ramp(hall, "RampaCorredor", aisle[1], aisle[2], pitStart + ROW_DEPTH, pitTop, landingEnd, 0)
+	end
 	slab("Fosso", pitStart, 110, pitTop, C.carpet)
 	slab("Palco", 110, L + 1, pitTop + 2.4, C.wood)
 	k:box(hall, "PalcoFriso", V(W, 0.4, 0.4), CF(0, pitTop + 2.4, 110), C.gold)

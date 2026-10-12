@@ -154,6 +154,31 @@ function Kit:light(part, props)
 end
 
 --[[
+	Rampa invisível de colisão (WedgePart) entre dois pontos no eixo Z.
+	Serve para escadas/degraus: o Humanoid só sobe sozinho degraus mais baixos que o
+	passo dele (personagens pequenos, como o waffle, travam); numa rampa qualquer um sobe.
+	x0..x1: largura; (zLow, yLow) é a base, (zHigh, yHigh) o topo.
+]]
+function Kit:ramp(parent, name, x0, x1, zLow, yLow, zHigh, yHigh)
+	local CFrame, Vector3 = self.CFrame, self.Vector3
+	local length = math.abs(zHigh - zLow)
+	local height = yHigh - yLow
+	local center = Vector3.new((x0 + x1) / 2, (yLow + yHigh) / 2, (zLow + zHigh) / 2)
+	-- O WedgePart sobe em direção ao +Z local; gira 180° se o topo estiver no -Z
+	local cf = CFrame.new(center)
+	if zHigh < zLow then
+		cf = cf * CFrame.Angles(0, math.pi, 0)
+	end
+	return self:part(parent, {
+		name = name,
+		class = "WedgePart",
+		size = Vector3.new(math.abs(x1 - x0), height, length),
+		cf = cf,
+		transparency = 1,
+	})
+end
+
+--[[
 	Placa com SurfaceGui (cardápio, cartazes, letreiros).
 	opts:
 		face (Enum.NormalId), bg (Color3), bgTransparency, glow (ignora luz da cena)
