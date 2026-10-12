@@ -169,7 +169,7 @@ for (const l of [...arr(data.lights)].sort((a, b) => b.r * b.b - a.r * a.b).slic
 // Bonecos de referência com a altura dos personagens do jogo (~3,7 studs), só no preview.
 // Posições em medidas de projeto (multiplicadas pela escala do build).
 const CHAR_HEIGHT = 3.7;
-const REFS = data.name === "CandyMansionInterior" ? [[12, 1, -12], [-3, 13, 6], [-19, 7, -6]] : [[2, 0, 10], [-23.5, 0, 18], [-14, -1.2, 58.6]];
+const REFS = (data.name === "CandyMansionInterior" || data.name === "SushiHouseInterior") ? [[12, 1, -12], [-3, 13, 6], [-19, 7, -6]] : [[2, 0, 10], [-23.5, 0, 18], [-14, -1.2, 58.6]];
 for (const [x, y, z] of REFS) {
   const k = data.scale || 1;
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.75, CHAR_HEIGHT - 1.5 - 1.6, 4, 12), new THREE.MeshStandardMaterial({ color: 0xc8743c }));
@@ -202,6 +202,7 @@ VIEWS_BY_SCENE.CandyMansionInterior = {
   geral: [[50, 52, -50], [0, 8, 0]],
   geralTerreo: [[50, 52, -50], [0, 4, 0]],
 };
+VIEWS_BY_SCENE.SushiHouseInterior = VIEWS_BY_SCENE.CandyMansionInterior;
 const VIEWS = VIEWS_BY_SCENE[data.name] || VIEWS_BY_SCENE.CineCornInterior;
 function setView(name) {
   const v = VIEWS[name] || Object.values(VIEWS)[0];

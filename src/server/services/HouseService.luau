@@ -16,6 +16,7 @@ local HouseService = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local ServerStorage = game:GetService("ServerStorage")
+local TweenService = game:GetService("TweenService")
 
 local InventoryService = require(script.Parent.InventoryService)
 local TeleportTransition = require(script.Parent.TeleportTransition)
@@ -26,6 +27,7 @@ local EventsFolder = ReplicatedStorage:WaitForChild("Events")
 local cameraEvent = EventsFolder:WaitForChild("SetCameraMode")
 local cameraSyncEvent = EventsFolder:WaitForChild("CameraSyncRequest")
 local exitHouseEvent = EventsFolder:WaitForChild("HouseEvents"):WaitForChild("ExitHouse")
+local fecharPortaEvent = EventsFolder:WaitForChild("FecharPortaEvent") -- disparado pelo TeleportTransition
 
 -- === REFERÊNCIAS ===
 local casasFolder = workspace:WaitForChild("Casas")
@@ -72,11 +74,15 @@ local HOUSES = {
 		FrontYaw = 0,
 	},
 	["Cheese House"] = { Exterior = shopModel("CheeseHouse") },
-	["Sushi House"] = { Exterior = shopModel("SushiHouse") },
+	["Sushi House"] = {
+		Exterior = shopModel("SushiHouse"),
+		Interior = interiorModel("SushiHouseInterior"),
+	},
 }
 
 local lotesOcupados = {}
 local houses = {} -- [player] = { lote, exterior, interior, houseName, spawnInterior, exitTarget, focus }
+local rebuildIfChanged -- definida mais abaixo
 
 -- === FUNÇÕES AUXILIARES ===
 
@@ -175,10 +181,37 @@ end
 
 -- Coloca no lote uma casa que não segue o padrão do exterior inicial e cria a entrada.
 -- A porta da casa fica virada para a rua do lote (mesmo lado da porta da casa inicial).
+-- Porta animada das casas da loja: Model "Porta" com a dobradiça "Hing" (ancorada, as
+-- folhas soldadas nela) e o "Detector" (volume invisível que abre a porta).
+local function findAnimatedDoor(exterior)
+	local hinge = exterior:FindFirstChild("Hing", true)
+	if not (hinge and hinge:IsA("BasePart")) then return nil end
+	local detector = hinge.Parent:FindFirstChild("Detector")
+	if not (detector and detector:IsA("BasePart")) then return nil end
+	return hinge.Parent, hinge, detector
+end
+
+-- Y mais baixo das peças visíveis do modelo, fora as de "exclude" (nil se não houver)
+local function visibleBottomY(model, exclude)
+	local minY = math.huge
+	for _, part in ipairs(model:GetDescendants()) do
+		if part:IsA("BasePart") and part.Transparency < 1 and not (exclude and part:IsDescendantOf(exclude)) then
+			local cf, s = part.CFrame, part.Size
+			local halfHeight = math.abs(cf.RightVector.Y) * s.X / 2 + math.abs(cf.UpVector.Y) * s.Y / 2 + math.abs(cf.LookVector.Y) * s.Z / 2
+			minY = math.min(minY, cf.Position.Y - halfHeight)
+		end
+	end
+	return minY < math.huge and minY or nil
+end
+
 local function placeGenericExterior(exterior, spawnPart, config)
-	-- Modelos de vitrine podem ter peças soltas: ancora tudo para a casa não desabar
+	-- Modelos de vitrine podem ter peças soltas: ancora tudo para a casa não desabar,
+	-- menos as folhas da porta animada (presas na dobradiça, que é ancorada)
+	local doorModel = findAnimatedDoor(exterior)
 	for _, part in ipairs(exterior:GetDescendants()) do
-		if part:IsA("BasePart") then part.Anchored = true end
+		if part:IsA("BasePart") and not (doorModel and part:IsDescendantOf(doorModel) and not part.Anchored) then
+			part.Anchored = true
+		end
 	end
 
 	-- Pivô limpo, sem rotação: modelos importados (ex.: a Candy Mansion) trazem um
@@ -187,10 +220,12 @@ local function placeGenericExterior(exterior, spawnPart, config)
 	exterior.PrimaryPart = nil
 	exterior.WorldPivot = CFrame.new(exterior:GetBoundingBox().Position)
 
-	-- Agora a caixa é medida nos eixos do mundo (Y = altura de verdade)
+	-- Agora a caixa é medida nos eixos do mundo (Y = altura de verdade). A altura do
+	-- pivô vem da base visível da casa: a porta (que nos modelos fica enterrada no chão)
+	-- e os volumes invisíveis (Detector) desciam mais e deixavam a casa flutuando.
 	local cf, size = exterior:GetBoundingBox()
 	local center = cf.Position
-	exterior.WorldPivot = CFrame.new(center.X, center.Y - size.Y / 2, center.Z)
+	exterior.WorldPivot = CFrame.new(center.X, visibleBottomY(exterior, doorModel) or center.Y - size.Y / 2, center.Z)
 
 	-- Lado da porta no modelo original: a "Porta" do modelo ou, sem ela, o -Z girado por FrontYaw
 	local door = exterior:FindFirstChild("Porta", true)
@@ -207,7 +242,7 @@ local function placeGenericExterior(exterior, spawnPart, config)
 	-- Entrada: na porta do modelo ou no meio da face da frente
 	cf, size = exterior:GetBoundingBox()
 	center = cf.Position
-	local bottom = center.Y - size.Y / 2
+	local bottom = visibleBottomY(exterior, doorModel) or center.Y - size.Y / 2
 	local entrancePos
 	door = exterior:FindFirstChild("Porta", true)
 	if door then
@@ -266,6 +301,78 @@ local function repairDoorWelds(exterior)
 			weld.Parent = part
 		end
 	end
+end
+
+--[[
+	Anima a porta das casas da loja (a casa inicial tem script próprio): abre quando um
+	jogador entra no Detector, fecha quando não sobra ninguém nele ou no teleporte
+	(FecharPortaEvent). O "Enter" (painel Neon na porta) só brilha com a porta aberta.
+	Os scripts dos modelos da loja são removidos ao montar, então a lógica fica aqui.
+]]
+local DOOR_OPEN_ANGLE = math.rad(-90) -- mesmo giro do script da porta da casa inicial
+local DOOR_TWEEN = TweenInfo.new(0.5)
+local DOOR_CHECK_INTERVAL = 0.3
+
+local function hasPlayerInside(detector, params)
+	for _, part in ipairs(workspace:GetPartBoundsInBox(detector.CFrame, detector.Size, params)) do
+		if Players:GetPlayerFromCharacter(part.Parent) then return true end
+	end
+	return false
+end
+
+local function setupAnimatedDoor(exterior)
+	local doorModel, hinge, detector = findAnimatedDoor(exterior)
+	if not doorModel then return end
+
+	local glow = doorModel:FindFirstChild("Enter")
+	local function setGlow(on)
+		if not (glow and glow:IsA("BasePart")) then return end
+		glow.Transparency = on and 0 or 1
+		for _, light in ipairs(glow:GetDescendants()) do
+			if light:IsA("Light") then light.Enabled = on end
+		end
+	end
+	if glow and glow:IsA("BasePart") then
+		glow.CanCollide = false -- é só o brilho; não pode barrar quem entra
+	end
+	setGlow(false)
+
+	local closedCf = hinge.CFrame
+	local tweenOpen = TweenService:Create(hinge, DOOR_TWEEN, { CFrame = closedCf * CFrame.Angles(0, DOOR_OPEN_ANGLE, 0) })
+	local tweenClose = TweenService:Create(hinge, DOOR_TWEEN, { CFrame = closedCf })
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { exterior }
+
+	local open = false
+	local function close()
+		if not open then return end
+		open = false
+		tweenClose:Play()
+	end
+	tweenClose.Completed:Connect(function()
+		if not open then setGlow(false) end
+	end)
+
+	detector.Touched:Connect(function(hit)
+		if open or not Players:GetPlayerFromCharacter(hit.Parent) then return end
+		open = true
+		setGlow(true)
+		tweenOpen:Play()
+		-- Fecha quando o último jogador sair do Detector (TouchEnded falha com vários membros)
+		task.spawn(function()
+			while open and detector.Parent do
+				task.wait(DOOR_CHECK_INTERVAL)
+				if open and not hasPlayerInside(detector, params) then close() end
+			end
+		end)
+	end)
+
+	local closeConn = fecharPortaEvent.Event:Connect(close)
+	exterior.Destroying:Connect(function()
+		open = false
+		closeConn:Disconnect()
+	end)
 end
 
 -- Saída do interior: capacho com prompt (substitui a PortaSaida de encostar)
@@ -358,6 +465,7 @@ local function buildHouse(player, state)
 	exterior:SetAttribute("LoteOriginal", state.lote.Name)
 	exterior:SetAttribute("Casa", houseName)
 	exterior.Parent = casasFolder
+	if exteriorTemplate ~= starterExterior then setupAnimatedDoor(exterior) end
 
 	local portaEntrada = exterior:FindFirstChild("PortaEntrada", true)
 	local frenteDaCasa = exterior:FindFirstChild("FrenteDaCasa", true)
@@ -428,8 +536,9 @@ function HouseService.onPlayerAdded(player)
 	local state = { lote = loteModel, spawnPart = spawnPart }
 	houses[player] = state
 
-	-- Precisa saber qual casa está equipada
-	InventoryService.WaitForData(player, 15)
+	-- Precisa saber qual casa está equipada. Se demorar, monta a inicial agora (o jogador
+	-- nasce nela) e troca pela equipada quando os dados chegarem.
+	local dataReady = InventoryService.WaitForData(player, 15)
 	if not player.Parent then
 		lotesOcupados[loteModel] = nil
 		houses[player] = nil
@@ -442,6 +551,15 @@ function HouseService.onPlayerAdded(player)
 	end
 
 	buildHouse(player, state)
+
+	if not dataReady then
+		warn("[HouseService] Inventário de " .. player.Name .. " atrasado; casa inicial montada provisoriamente")
+		task.spawn(function()
+			if InventoryService.WaitForData(player, 120) and houses[player] == state then
+				rebuildIfChanged(player)
+			end
+		end)
+	end
 end
 
 function HouseService.onPlayerRemoving(player)
@@ -458,11 +576,14 @@ function HouseService.onPlayerRemoving(player)
 	end
 end
 
--- Equipou outra casa: reconstrói (e leva para dentro da nova se estava em casa)
-InventoryService.EquippedChanged:Connect(function(player, category, itemName)
-	if category ~= "House" then return end
+-- Equipou outra casa (ou os dados chegaram depois da montagem): reconstrói e leva para
+-- dentro da nova se estava em casa
+function rebuildIfChanged(player)
 	local state = houses[player]
-	if not state or not state.exterior or state.houseName == itemName then return end
+	if not state or not state.exterior then return end
+	local equipped = InventoryService.GetEquipped(player, "House")
+	local houseName = (equipped and HOUSES[equipped]) and equipped or ItemCatalog.StarterHouse
+	if state.houseName == houseName then return end
 
 	local character = player.Character
 	local wasInside = character and character:GetAttribute("InsideHouse")
@@ -475,6 +596,10 @@ InventoryService.EquippedChanged:Connect(function(player, category, itemName)
 			cameraEvent:FireClient(player, "Isometrico", state.focus)
 		end)
 	end
+end
+
+InventoryService.EquippedChanged:Connect(function(player, category)
+	if category == "House" then rebuildIfChanged(player) end
 end)
 
 exitHouseEvent.OnServerEvent:Connect(function(player)
