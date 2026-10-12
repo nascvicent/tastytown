@@ -266,7 +266,7 @@ return function(rbx)
 
 	k:box(gates, "Saida", V(10, 10, 2), CF(0, 5, 1.2), C.green,
 		{ transparency = 1, collide = false, touch = true })
-	k:box(gates, "SpawnInterior", V(4, 1, 4), CFrame.lookAt(V(0, 0.5, 9), V(0, 0.5, 30)), C.green,
+	k:box(gates, "SpawnInterior", V(4, 1, 4), k:lookAt(V(0, 0.5, 9), V(0, 0.5, 30)), C.green,
 		{ transparency = 1, collide = false })
 
 	-- Tapete vermelho da porta até a sala

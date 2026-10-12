@@ -128,13 +128,28 @@ function Kit:ball(parent, name, diameter, position, color, extra)
 	return self:part(parent, props)
 end
 
+-- CFrame em "at" olhando para "target" (como CFrame.lookAt do Roblox).
+-- Não usar o CFrame.lookAt do Lune: ele espelha a inclinação (a componente Z da
+-- direção sai invertida), deixando canudos, corrimãos e fachos tortos no jogo.
+function Kit:lookAt(at, target)
+	local Vector3 = self.Vector3
+	local look = (target - at).Unit
+	local up = Vector3.new(0, 1, 0)
+	if math.abs(look:Dot(up)) > 0.999 then
+		up = Vector3.new(0, 0, 1)
+	end
+	local right = look:Cross(up).Unit
+	local trueUp = right:Cross(look).Unit
+	return self.CFrame.fromMatrix(at, right, trueUp, -look)
+end
+
 -- Peça ligando dois pontos (canudos, cordas, fachos de luz)
 function Kit:beam(parent, name, a, b, thickness, color, extra)
 	local length = (b - a).Magnitude
 	local props = extra or {}
 	props.name = name
 	props.size = self.Vector3.new(thickness, thickness, length)
-	props.cf = self.CFrame.lookAt((a + b) / 2, b)
+	props.cf = self:lookAt((a + b) / 2, b)
 	props.color = color
 	return self:part(parent, props)
 end

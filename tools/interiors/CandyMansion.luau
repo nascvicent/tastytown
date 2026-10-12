@@ -478,7 +478,7 @@ return function(rbx)
 		k:sign(sign, { face = Enum.NormalId.Back, bg = C.mint, glow = true, lines = { { text = "SAÍDA", y = 0.1, h = 0.8, color = C.white } } })
 	end
 
-	k:box(root, "SpawnInterior", V(4, 1, 2), CFrame.lookAt(V(12, FLOOR + 0.5, -12), V(0, FLOOR + 0.5, 0)), C.white,
+	k:box(root, "SpawnInterior", V(4, 1, 2), k:lookAt(V(12, FLOOR + 0.5, -12), V(0, FLOOR + 0.5, 0)), C.white,
 		{ transparency = 1, collide = false })
 	k:box(root, "CasaTrigger", V(HALF * 2, WALL_TOP - FLOOR, HALF * 2), CF(0, (FLOOR + WALL_TOP) / 2, 0), C.white,
 		{ transparency = 1, collide = false })

@@ -37,7 +37,11 @@ local function dump(model)
 
 	for _, inst in ipairs(model:GetDescendants()) do
 		if inst:IsA("BasePart") then
-			local cf = { inst.CFrame:GetComponents() }
+			-- Matriz montada pelos vetores de direção: o GetComponents() do Lune não bate
+			-- com o LookVector dele em peças inclinadas (o preview mostrava rotações erradas)
+			local c = inst.CFrame
+			local p, r, u, l = c.Position, c.RightVector, c.UpVector, c.LookVector
+			local cf = { p.X, p.Y, p.Z, r.X, u.X, -l.X, r.Y, u.Y, -l.Y, r.Z, u.Z, -l.Z }
 			for i, v in ipairs(cf) do cf[i] = round(v) end
 			local shape = "Block"
 			if inst:IsA("Part") then shape = inst.Shape.Name end
