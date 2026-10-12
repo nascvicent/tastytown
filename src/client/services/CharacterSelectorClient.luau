@@ -108,13 +108,26 @@ function CharacterSelectorClient.Start()
 	-- Checa a cada 10s. Só age após 2 checagens seguidas sem nada (o spawn pode levar ~10s
 	-- esperando a casa): pede a seleção ao servidor (o que também fecha o loading) e, se
 	-- mesmo assim nada chegar, abre a UI localmente.
+	-- Enquanto o servidor marca "Spawning" (DataStore lento, casa sendo montada) não conta
+	-- como limbo, até um limite para o caso de o atributo ficar preso.
+	local SPAWNING_LIMIT = 60
 	task.spawn(function()
 		local tentativas = 0
+		local spawningSince = nil
 		while player.Parent do
 			task.wait(10)
 
 			local hasCharacter = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+			local spawning = player:GetAttribute("Spawning") == true
+			if spawning and not hasCharacter then
+				spawningSince = spawningSince or os.clock()
+			else
+				spawningSince = nil
+			end
+
 			if hasCharacter or IsSelectionOpen() then
+				tentativas = 0
+			elseif spawningSince and os.clock() - spawningSince < SPAWNING_LIMIT then
 				tentativas = 0
 			else
 				tentativas += 1

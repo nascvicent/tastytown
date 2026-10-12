@@ -21,9 +21,24 @@ local respawning = {}
 local escolhaPendente = {} -- escolha feita enquanto um spawn ainda estava em andamento
 Players.CharacterAutoLoads = false
 
+-- Atributo "Spawning" no Player: o servidor ainda está preparando o personagem (lendo o
+-- DataStore ou esperando a casa). O anti-limbo do cliente espera enquanto ele existir.
+local function setSpawning(player, value)
+	if player.Parent then player:SetAttribute("Spawning", value or nil) end
+end
+
 RequestSelection.OnServerEvent:Connect(function(player)
+	-- Spawn em andamento: abrir a seleção agora só criaria uma escolha pendente
+	if respawning[player] then return end
+	setSpawning(player, false)
 	ShowSelectionEvent:FireClient(player)
 end)
+
+-- RequestStreamAroundAsync pode falhar; sem pcall o erro deixava o spawn travado
+local function streamAround(player, position)
+	local ok, err = pcall(player.RequestStreamAroundAsync, player, position)
+	if not ok then warn("RequestStreamAroundAsync falhou para " .. player.Name .. ": " .. tostring(err)) end
+end
 
 -- Funções auxiliares de Casa
 local function encontrarCasaExterior(player)
@@ -48,22 +63,17 @@ local function encontrarCasaInterior(player)
 	return interioresFolder:FindFirstChild(player.Name .. "_Interior")
 end
 
-local function spawnCharacter(player, characterName)
-	if not player.Parent then return end
-	if respawning[player] then
-		-- Em vez de descartar, guarda a escolha e aplica quando o spawn atual terminar
-		escolhaPendente[player] = characterName
-		return
-	end
-	respawning[player] = true
+local spawnCharacter
 
+local function doSpawn(player, characterName)
 	local oldChar = player.Character
 
 	-- Validação
 	local model = CharactersFolder:FindFirstChild(characterName)
 	if not model then
-		ShowSelectionEvent:FireClient(player)
 		respawning[player] = nil
+		setSpawning(player, false)
+		ShowSelectionEvent:FireClient(player)
 		PlayerLoadedEvent:FireClient(player)
 		return
 	end
@@ -115,15 +125,23 @@ local function spawnCharacter(player, characterName)
 
 	local nasceuDentroDeCasa = false
 	if casaInterior and casaInterior:FindFirstChild("SpawnInterior") then
-		player:RequestStreamAroundAsync(casaInterior.SpawnInterior.Position)
+		streamAround(player, casaInterior.SpawnInterior.Position)
 		spawnLocation = casaInterior.SpawnInterior.CFrame + Vector3.new(0, 3, 0)
 		nasceuDentroDeCasa = true
 	elseif casaExterior then
-		if casaExterior.PrimaryPart then player:RequestStreamAroundAsync(casaExterior.PrimaryPart.Position) end
+		if casaExterior.PrimaryPart then streamAround(player, casaExterior.PrimaryPart.Position) end
 		local spawnPoint = casaExterior:FindFirstChild("PortaEntrada") or casaExterior.PrimaryPart
 		if spawnPoint then spawnLocation = spawnPoint.CFrame * CFrame.new(0, 3, -5) end
 	else
-		if spawnPadrao then player:RequestStreamAroundAsync(spawnPadrao.Position) end
+		if spawnPadrao then streamAround(player, spawnPadrao.Position) end
+	end
+
+	-- O jogador pode ter saído durante o streaming
+	if not player.Parent then
+		clone:Destroy()
+		respawning[player] = nil
+		escolhaPendente[player] = nil
+		return
 	end
 
 	-- Mantém o handshake de câmera do HouseService coerente com onde o jogador nasceu
@@ -141,6 +159,7 @@ local function spawnCharacter(player, characterName)
 	NameTagService.ApplyTag(player, clone)
 	-- =======================
 
+	setSpawning(player, false)
 	task.delay(1, function()
 		respawning[player] = nil
 		local pendente = escolhaPendente[player]
@@ -152,16 +171,50 @@ local function spawnCharacter(player, characterName)
 	PlayerLoadedEvent:FireClient(player)
 end
 
+function spawnCharacter(player, characterName)
+	if not player.Parent then return end
+	if respawning[player] then
+		-- Em vez de descartar, guarda a escolha e aplica quando o spawn atual terminar
+		escolhaPendente[player] = characterName
+		return
+	end
+	respawning[player] = true
+	setSpawning(player, true)
+
+	-- Qualquer erro no meio do spawn deixava respawning preso e o jogador no limbo para sempre
+	local ok, err = pcall(doSpawn, player, characterName)
+	if not ok then
+		warn("Erro ao spawnar " .. tostring(characterName) .. " para " .. player.Name .. ": " .. tostring(err))
+		respawning[player] = nil
+		escolhaPendente[player] = nil
+		setSpawning(player, false)
+		if not player.Parent then return end
+		local char = player.Character
+		if not (char and char.Parent and char:FindFirstChild("HumanoidRootPart")) then
+			ShowSelectionEvent:FireClient(player)
+		end
+		PlayerLoadedEvent:FireClient(player)
+	end
+end
+
 local jogadoresIniciados = {}
 
 local function onPlayerAdded(player)
 	if jogadoresIniciados[player] then return end
 	jogadoresIniciados[player] = true
 
+	setSpawning(player, true)
 	NameTagService.LoadTag(player)
-	local success, savedCharacter = pcall(function()
-		return CharacterStore:GetAsync(tostring(player.UserId))
-	end)
+	local success, savedCharacter
+	for attempt = 1, 3 do
+		success, savedCharacter = pcall(function()
+			return CharacterStore:GetAsync(tostring(player.UserId))
+		end)
+		if success or not player.Parent then break end
+		warn("Falha ao ler o personagem de " .. player.Name .. " (tentativa " .. attempt .. "): " .. tostring(savedCharacter))
+		task.wait(attempt)
+	end
+	if not player.Parent then return end
 
 	if success and savedCharacter and typeof(savedCharacter) == "string" then
 		print(player.Name .. " tem dados salvos: " .. savedCharacter)
@@ -173,6 +226,7 @@ local function onPlayerAdded(player)
 			print(player.Name .. " é novo ou teve dados apagados.")
 		end
 
+		setSpawning(player, false)
 		ShowSelectionEvent:FireClient(player)
 	end
 end

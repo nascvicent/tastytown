@@ -69,16 +69,25 @@ local CATEGORY_ORDER = { "Car", "House", "Tag" }
 -- Funções Auxiliares (Privadas)
 -- ═══════════════════════════════════════════
 
-local function loadStoreData(store, userId)
-	local success, data = pcall(function()
-		return store:GetAsync(tostring(userId))
-	end)
+-- Lê uma chave com algumas tentativas. Devolve (dados, ok): ok = false quando o DataStore
+-- falhou (diferente de "jogador sem dados", que é ok = true com tabela vazia).
+local LOAD_ATTEMPTS = 3
 
-	if success and data then
-		return data
+local function loadStoreData(store, userId)
+	for attempt = 1, LOAD_ATTEMPTS do
+		local success, data = pcall(function()
+			return store:GetAsync(tostring(userId))
+		end)
+
+		if success then
+			return (type(data) == "table" and data) or {}, true
+		end
+
+		warn("[TastyTown Inventory] Falha ao ler " .. store.Name .. " (tentativa " .. attempt .. "): " .. tostring(data))
+		if attempt < LOAD_ATTEMPTS then task.wait(attempt) end
 	end
 
-	return {}
+	return {}, false
 end
 
 local function saveEquippedData(userId, equippedData)
@@ -93,38 +102,67 @@ local function saveEquippedData(userId, equippedData)
 	return success
 end
 
-local function loadAllPlayerData(userId)
-	local cars = loadStoreData(CarsStore, userId)
-	local houses = loadStoreData(HousesStore, userId)
-	local tags = loadStoreData(TagsStore, userId)
-	local equipped = loadStoreData(EquippedStore, userId)
-
-	if not equipped or type(equipped) ~= "table" then
-		equipped = {}
+-- Só grava o equipado quando ele veio do DataStore (ou o jogador escolheu algo na sessão).
+-- Com a leitura falhada, o cache tem só o padrão e gravar apagaria a escolha salva.
+-- Sem a leitura, grava só as categorias escolhidas, por cima do que já está salvo.
+local function saveEquippedIfTrusted(userId, cache)
+	if cache.EquippedLoaded then
+		return saveEquippedData(userId, cache.Equipped)
 	end
+	if not next(cache.EquippedChosen) then return false end
+
+	local success, err = pcall(function()
+		EquippedStore:UpdateAsync(tostring(userId), function(saved)
+			saved = type(saved) == "table" and saved or {}
+			for category in pairs(cache.EquippedChosen) do
+				saved[category] = cache.Equipped[category]
+			end
+			return saved
+		end)
+	end)
+	if not success then
+		warn("[TastyTown Inventory] Erro ao salvar equipped data para userId " .. tostring(userId) .. ": " .. tostring(err))
+	end
+	return success
+end
+
+-- Completa os equipados vazios com o último item de cada lista
+local function fillEquippedDefaults(data)
+	local equipped = data.Equipped
+	for _, category in ipairs(CATEGORY_ORDER) do
+		local list = data[category .. "s"]
+		if (not equipped[category] or equipped[category] == "") and #list > 0 then
+			equipped[category] = list[#list]
+		end
+	end
+end
+
+local function loadAllPlayerData(userId)
+	local cars, carsOk = loadStoreData(CarsStore, userId)
+	local houses, housesOk = loadStoreData(HousesStore, userId)
+	local tags, tagsOk = loadStoreData(TagsStore, userId)
+	local equipped, equippedOk = loadStoreData(EquippedStore, userId)
 
 	if STARTER_HOUSE and not table.find(houses, STARTER_HOUSE) then
 		table.insert(houses, 1, STARTER_HOUSE)
 	end
 
-	if (not equipped.Car or equipped.Car == "") and #cars > 0 then
-		equipped.Car = cars[#cars]
-	end
-
-	if (not equipped.House or equipped.House == "") and #houses > 0 then
-		equipped.House = houses[#houses]
-	end
-
-	if (not equipped.Tag or equipped.Tag == "") and #tags > 0 then
-		equipped.Tag = tags[#tags]
-	end
-
-	return {
+	local data = {
 		Cars = cars,
 		Houses = houses,
 		Tags = tags,
 		Equipped = equipped,
+		EquippedLoaded = equippedOk,
+		EquippedChosen = {}, -- [category] = true quando o jogador equipou algo nesta sessão
+		Failed = { -- leituras que falharam, refeitas em segundo plano
+			Car = not carsOk or nil,
+			House = not housesOk or nil,
+			Tag = not tagsOk or nil,
+			Equipped = not equippedOk or nil,
+		},
 	}
+	fillEquippedDefaults(data)
+	return data
 end
 
 local function playerOwnsItem(userId, category, itemName)
@@ -188,7 +226,8 @@ function InventoryModule.AddItem(player, category, itemName)
 
 		if #cache[listKey] == 1 then
 			cache.Equipped[category] = itemName
-			saveEquippedData(userId, cache.Equipped)
+			cache.EquippedChosen[category] = true
+			saveEquippedIfTrusted(userId, cache)
 		end
 	end
 
@@ -240,7 +279,8 @@ function InventoryModule.RemoveItem(player, category, itemName)
 		if cache.Equipped[category] == itemName then
 			local remaining = cache[listKey] or {}
 			cache.Equipped[category] = #remaining > 0 and remaining[#remaining] or ""
-			saveEquippedData(userId, cache.Equipped)
+			cache.EquippedChosen[category] = true
+			saveEquippedIfTrusted(userId, cache)
 		end
 	end
 
@@ -268,6 +308,66 @@ function InventoryModule.WaitForData(player, timeout)
 	return PlayerCache[player.UserId] ~= nil
 end
 
+-- Leituras que falharam na entrada: tenta de novo em segundo plano. O que chegar entra
+-- no cache sem desfazer o que o jogador já equipou nesta sessão.
+local RETRY_INTERVAL = 6
+local RETRY_ROUNDS = 10
+
+local function retryFailedLoads(player)
+	local userId = player.UserId
+	for _ = 1, RETRY_ROUNDS do
+		task.wait(RETRY_INTERVAL)
+		local cache = PlayerCache[userId]
+		if not cache or not player.Parent or not next(cache.Failed) then return end
+
+		for category, store in pairs(CATEGORIES) do
+			if cache.Failed[category] then
+				local list, ok = loadStoreData(store, userId)
+				if ok then
+					cache.Failed[category] = nil
+					local listKey = category .. "s"
+					if category == "House" and STARTER_HOUSE and not table.find(list, STARTER_HOUSE) then
+						table.insert(list, 1, STARTER_HOUSE)
+					end
+					for _, item in ipairs(cache[listKey] or {}) do
+						if not table.find(list, item) then table.insert(list, item) end
+					end
+					cache[listKey] = list
+				end
+			end
+		end
+
+		local changed = {}
+		if cache.Failed.Equipped then
+			local saved, ok = loadStoreData(EquippedStore, userId)
+			if ok then
+				cache.Failed.Equipped = nil
+				cache.EquippedLoaded = true
+				for _, category in ipairs(CATEGORY_ORDER) do
+					local item = saved[category]
+					if not cache.EquippedChosen[category] and type(item) == "string" and item ~= ""
+						and item ~= cache.Equipped[category] then
+						cache.Equipped[category] = item
+						changed[category] = item
+					end
+				end
+			end
+		end
+		fillEquippedDefaults(cache)
+
+		if PlayerCache[userId] ~= cache or not player.Parent then return end
+		InventoryUpdated:FireClient(player, { action = "Reloaded" })
+		for category, item in pairs(changed) do
+			EquippedChanged:Fire(player, category, item)
+		end
+		if not next(cache.Failed) then
+			print("[TastyTown Inventory] Dados recuperados para " .. player.Name)
+			return
+		end
+	end
+	warn("[TastyTown Inventory] Não foi possível carregar todos os dados de " .. player.Name)
+end
+
 -- ═══════════════════════════════════════════
 -- Método de Inicialização (Start)
 -- ═══════════════════════════════════════════
@@ -278,9 +378,15 @@ function InventoryModule.Start()
 		local userId = player.UserId
 		if PlayerCache[userId] then return end
 		local data = loadAllPlayerData(userId)
+		if PlayerCache[userId] then return end -- o GetInventoryData pode ter carregado antes
 		PlayerCache[userId] = data
 
-		saveEquippedData(userId, data.Equipped)
+		if next(data.Failed) then
+			warn("[TastyTown Inventory] Dados de " .. player.Name .. " carregados com falhas; tentando de novo em segundo plano")
+			task.spawn(retryFailedLoads, player)
+		else
+			saveEquippedData(userId, data.Equipped)
+		end
 		print("[TastyTown Inventory] Dados carregados para " .. player.Name)
 	end
 	Players.PlayerAdded:Connect(onPlayerAdded)
@@ -294,10 +400,26 @@ function InventoryModule.Start()
 		local cache = PlayerCache[userId]
 
 		if cache then
-			saveEquippedData(userId, cache.Equipped)
+			saveEquippedIfTrusted(userId, cache)
 			PlayerCache[userId] = nil
 		end
 		print("[TastyTown Inventory] Dados salvos para " .. player.Name)
+	end)
+
+	-- Servidor fechando (inclui o Stop do Studio): o PlayerRemoving pode não dar tempo
+	game:BindToClose(function()
+		local pending = 0
+		for userId, cache in pairs(PlayerCache) do
+			pending += 1
+			task.spawn(function()
+				saveEquippedIfTrusted(userId, cache)
+				pending -= 1
+			end)
+		end
+		local start = os.clock()
+		while pending > 0 and os.clock() - start < 25 do
+			task.wait(0.1)
+		end
 	end)
 
 	-- Conectar Remotes
@@ -305,9 +427,18 @@ function InventoryModule.Start()
 		local userId = player.UserId
 		local cache = PlayerCache[userId]
 
+		-- O carregamento da entrada já está em andamento: espera ele em vez de ler de novo
+		if not cache and InventoryModule.WaitForData(player, 20) then
+			cache = PlayerCache[userId]
+		end
 		if not cache then
 			cache = loadAllPlayerData(userId)
-			PlayerCache[userId] = cache
+			if PlayerCache[userId] then
+				cache = PlayerCache[userId]
+			else
+				PlayerCache[userId] = cache
+				if next(cache.Failed) then task.spawn(retryFailedLoads, player) end
+			end
 		end
 
 		return {
@@ -359,7 +490,8 @@ function InventoryModule.Start()
 		if not cache then return end
 
 		cache.Equipped[category] = itemName
-		saveEquippedData(userId, cache.Equipped)
+		cache.EquippedChosen[category] = true
+		saveEquippedIfTrusted(userId, cache)
 
 		InventoryUpdated:FireClient(player, {
 			category = category,
