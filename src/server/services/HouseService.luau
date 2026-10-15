@@ -422,6 +422,7 @@ local function setupWardrobePrompt(player, interior)
 
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "TrocarSaborPrompt"
+	prompt:SetAttribute("Som", "PopSound") -- tocado no cliente pelo PromptController
 	prompt.ActionText = "Trocar sabor"
 	prompt.ObjectText = "Guarda-roupa"
 	prompt.KeyboardKeyCode = Enum.KeyCode.E

@@ -10,6 +10,7 @@ local PromptController = {}
 
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
@@ -179,6 +180,15 @@ function PromptController.Start()
 			hiddenConnection:Disconnect()
 			cleanup()
 		end)
+	end)
+
+	-- Atributo "Som" no prompt: nome de um som em ReplicatedStorage.Sounds, tocado ao ativar
+	ProximityPromptService.PromptTriggered:Connect(function(prompt)
+		local soundName = prompt:GetAttribute("Som")
+		if type(soundName) ~= "string" then return end
+		local sounds = ReplicatedStorage:FindFirstChild("Sounds")
+		local sound = sounds and sounds:FindFirstChild(soundName)
+		if sound and sound:IsA("Sound") then sound:Play() end
 	end)
 end
 
