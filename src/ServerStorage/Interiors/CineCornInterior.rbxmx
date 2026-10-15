@@ -27,6 +27,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -56,6 +57,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -85,6 +87,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -114,6 +117,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -143,6 +147,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -172,6 +177,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -201,6 +207,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -230,6 +237,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -259,6 +267,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -288,6 +297,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -317,6 +327,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -346,6 +357,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -375,6 +387,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -404,6 +417,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -433,6 +447,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -462,6 +477,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -491,6 +507,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -520,6 +537,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -549,6 +567,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -578,6 +597,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -607,6 +627,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -636,6 +657,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -665,6 +687,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -694,6 +717,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -723,6 +747,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -752,6 +777,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -781,6 +807,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -810,6 +837,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -839,6 +867,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -868,6 +897,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -897,6 +927,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -926,6 +957,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -955,6 +987,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -984,6 +1017,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1013,6 +1047,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1042,6 +1077,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1071,6 +1107,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1100,6 +1137,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1129,6 +1167,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1158,6 +1197,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1187,6 +1227,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1216,6 +1257,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1245,6 +1287,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1274,6 +1317,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1303,6 +1347,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1332,6 +1377,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1361,6 +1407,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1390,6 +1437,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1419,6 +1467,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1448,6 +1497,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1477,6 +1527,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1506,6 +1557,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1535,6 +1587,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1564,6 +1617,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1593,6 +1647,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1622,6 +1677,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1651,6 +1707,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1680,6 +1737,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1709,6 +1767,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1738,6 +1797,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1767,6 +1827,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1796,6 +1857,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1825,6 +1887,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1854,6 +1917,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1883,6 +1947,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1912,6 +1977,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1941,6 +2007,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1970,6 +2037,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -1999,6 +2067,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2028,6 +2097,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2057,6 +2127,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16768642</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2086,6 +2157,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2115,6 +2187,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2144,6 +2217,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2173,6 +2247,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2202,6 +2277,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2231,6 +2307,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2260,6 +2337,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2289,6 +2367,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2318,6 +2397,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16578800</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2347,6 +2427,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">3809364</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2376,6 +2457,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">3809364</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2405,6 +2487,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">3809364</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2434,6 +2517,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">16773332</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">
@@ -2463,6 +2547,7 @@
             <R21>0</R21>
             <R22>1</R22>
           </CoordinateFrame>
+          <bool name="CastShadow">false</bool>
           <Color3uint8 name="Color3uint8">2234942</Color3uint8>
           <token name="Material">272</token>
           <Vector3 name="size">

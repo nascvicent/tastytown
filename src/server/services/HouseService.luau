@@ -27,6 +27,7 @@ local EventsFolder = ReplicatedStorage:WaitForChild("Events")
 local cameraEvent = EventsFolder:WaitForChild("SetCameraMode")
 local cameraSyncEvent = EventsFolder:WaitForChild("CameraSyncRequest")
 local exitHouseEvent = EventsFolder:WaitForChild("HouseEvents"):WaitForChild("ExitHouse")
+local showSelectionEvent = EventsFolder:WaitForChild("SelectionEvents"):WaitForChild("ShowCharacterSelection")
 local fecharPortaEvent = EventsFolder:WaitForChild("FecharPortaEvent") -- disparado pelo TeleportTransition
 
 -- === REFERÊNCIAS ===
@@ -66,7 +67,8 @@ end
 local HOUSES = {
 	[ItemCatalog.StarterHouse] = {
 		Exterior = function() return starterExterior end,
-		Interior = function() return starterInterior end,
+		-- Interior gerado (tools/interiors/CasaDeBiscoito.luau); o antigo fica de reserva
+		Interior = function() return interiorModel("CasaDeBiscoitoInterior")() or starterInterior end,
 	},
 	["Candy Mansion"] = {
 		Exterior = shopModel("CandyMansion"),
@@ -246,7 +248,13 @@ local function placeGenericExterior(exterior, spawnPart, config)
 	local entrancePos
 	door = exterior:FindFirstChild("Porta", true)
 	if door then
-		local p = door:IsA("Model") and door:GetPivot().Position or door.Position
+		-- No vão da porta: o "Enter" (painel da porta animada) ou a própria folha. O pivô do
+		-- Model "Porta" fica deslocado (o Detector gigante entra na conta) e o gatilho
+		-- ficava longe da porta, então encostar nela não fazia nada.
+		local doorway = door:IsA("Model") and (door:FindFirstChild("Enter") or door:FindFirstChild("Porta"))
+		local p = (doorway and doorway:IsA("BasePart") and doorway.Position)
+			or (door:IsA("Model") and door:GetPivot().Position)
+			or door.Position
 		entrancePos = Vector3.new(p.X, bottom + 3, p.Z)
 	else
 		-- Meia-extensão da caixa na direção da frente
@@ -275,7 +283,7 @@ local function groundedSpot(position, facing, exclude)
 	local hit = workspace:Raycast(position + Vector3.new(0, 40, 0), Vector3.new(0, -120, 0), params)
 	if not hit then return nil end
 	local spot = hit.Position + Vector3.new(0, 3.5, 0)
-	return CFrame.lookAt(spot, spot + facing)
+	return CFrame.lookAt(spot, spot + facing), hit.Instance
 end
 
 -- Porta animada (Hing + peças soltas soldadas): garante as soldas antes de a casa ir
@@ -405,6 +413,31 @@ local function setupExitPrompt(player, interior)
 	end)
 end
 
+-- Guarda-roupa: prompt "Trocar sabor" no wardrobe/Click (mesmo visual do de sair, no lugar
+-- do antigo botão flutuante) que abre a seleção de personagem
+local function setupWardrobePrompt(player, interior)
+	local wardrobe = interior:FindFirstChild("wardrobe")
+	local marker = wardrobe and wardrobe:FindFirstChild("Click")
+	if not marker or not marker:IsA("BasePart") then return end
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "TrocarSaborPrompt"
+	prompt.ActionText = "Trocar sabor"
+	prompt.ObjectText = "Guarda-roupa"
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.HoldDuration = 0
+	prompt.MaxActivationDistance = 9
+	prompt.RequiresLineOfSight = false
+	prompt.Style = Enum.ProximityPromptStyle.Custom -- visual do jogo (PromptController no cliente)
+	prompt.Parent = marker
+
+	prompt.Triggered:Connect(function(who)
+		if who == player then
+			showSelectionEvent:FireClient(player)
+		end
+	end)
+end
+
 -- === MONTAGEM DA CASA ===
 
 local function destroyHouse(state)
@@ -430,8 +463,8 @@ local function enterHouse(player)
 	})
 end
 
-local function buildHouse(player, state)
-	local equipped = InventoryService.GetEquipped(player, "House")
+local function buildHouse(player, state, forcedName)
+	local equipped = forcedName or InventoryService.GetEquipped(player, "House")
 	local houseName = (equipped and HOUSES[equipped]) and equipped or ItemCatalog.StarterHouse
 	local config = HOUSES[houseName]
 	local spawnPart = state.spawnPart
@@ -444,6 +477,7 @@ local function buildHouse(player, state)
 	local posicao = Vector3.new(spawnPart.Position.X * MULTIPLICADOR_DISTANCIA, ALTURA_INTERIOR, spawnPart.Position.Z * MULTIPLICADOR_DISTANCIA)
 	interior:PivotTo(CFrame.new(posicao) * spawnPart.CFrame.Rotation)
 	interior.Parent = interioresFolder
+	state.interior = interior -- já no estado: se algo abaixo falhar, o destroyHouse limpa
 
 	local spawnInterior = interior:FindFirstChild("SpawnInterior", true) or interior:FindFirstChildWhichIsA("BasePart", true)
 	interior.PrimaryPart = spawnInterior
@@ -452,6 +486,7 @@ local function buildHouse(player, state)
 	local exteriorTemplate = config.Exterior() or starterExterior
 	local exterior = exteriorTemplate:Clone()
 	exterior.Name = player.Name .. "_Exterior"
+	state.exterior = exterior
 	if exteriorTemplate ~= starterExterior then stripScripts(exterior) end
 
 	if exterior:FindFirstChild("PortaEntrada", true) then
@@ -480,20 +515,33 @@ local function buildHouse(player, state)
 		local outward = flat(portaEntrada.CFrame.LookVector) or Vector3.new(0, 0, -1)
 		local wanted = frenteDaCasa.CFrame + portaEntrada.CFrame.LookVector * 5
 		-- Confirma que há chão ali; senão tenta mais perto da porta e, por fim, o centro do lote
-		state.exitTarget = groundedSpot(wanted.Position, outward, exterior)
-			or groundedSpot(frenteDaCasa.Position, outward, exterior)
-			or groundedSpot(spawnPart.Position, outward, exterior)
-			or wanted
+		local exitTarget, ground = groundedSpot(wanted.Position, outward, exterior)
+		if not exitTarget then exitTarget, ground = groundedSpot(frenteDaCasa.Position, outward, exterior) end
+		if not exitTarget then exitTarget, ground = groundedSpot(spawnPart.Position, outward, exterior) end
+		state.exitTarget = exitTarget or wanted
+		-- Diagnóstico: onde o jogador aparece ao sair (ajuda a achar "saiu dentro do chão")
+		print(("[HouseService] Saída de %s: y=%.1f sobre %s"):format(player.Name, state.exitTarget.Position.Y,
+			ground and ground:GetFullName() or "nada (sem chão encontrado)"))
 	end
 
+	-- Entrar: encostar na PortaEntrada ou no painel "Enter" da porta animada (casas da loja)
+	-- dispara a transição de mordida e o teleporte para o interior
+	local function onDoorTouched(hit)
+		if Players:GetPlayerFromCharacter(hit.Parent) == player then
+			enterHouse(player)
+		end
+	end
 	if portaEntrada then
-		portaEntrada.Touched:Connect(function(hit)
-			if Players:GetPlayerFromCharacter(hit.Parent) == player then
-				enterHouse(player)
-			end
-		end)
+		portaEntrada.Touched:Connect(onDoorTouched)
+	end
+	local doorModel = exteriorTemplate ~= starterExterior and findAnimatedDoor(exterior)
+	local doorPanel = doorModel and doorModel:FindFirstChild("Enter")
+	if doorPanel and doorPanel:IsA("BasePart") and doorPanel ~= portaEntrada then
+		doorPanel.CanTouch = true
+		doorPanel.Touched:Connect(onDoorTouched)
 	end
 	setupExitPrompt(player, interior)
+	setupWardrobePrompt(player, interior)
 
 	print("[HouseService] Casa '" .. houseName .. "' montada para", player.Name, "no", state.lote.Name)
 end
@@ -576,8 +624,20 @@ function HouseService.onPlayerRemoving(player)
 	end
 end
 
+local function isAtInteriorHeight(position)
+	return position.Y > ALTURA_INTERIOR - 500
+end
+
+-- Ponto dentro da caixa do modelo (com margem)
+local function isNearModel(model, position, margin)
+	local cf, size = model:GetBoundingBox()
+	local p = cf:PointToObjectSpace(position)
+	local half = size / 2 + Vector3.new(margin, margin, margin)
+	return math.abs(p.X) <= half.X and math.abs(p.Y) <= half.Y and math.abs(p.Z) <= half.Z
+end
+
 -- Equipou outra casa (ou os dados chegaram depois da montagem): reconstrói e leva para
--- dentro da nova se estava em casa
+-- dentro da nova se estava em casa (ou para a frente da porta se estava em cima do lote)
 function rebuildIfChanged(player)
 	local state = houses[player]
 	if not state or not state.exterior then return end
@@ -586,16 +646,32 @@ function rebuildIfChanged(player)
 	if state.houseName == houseName then return end
 
 	local character = player.Character
-	local wasInside = character and character:GetAttribute("InsideHouse")
-	destroyHouse(state)
-	buildHouse(player, state)
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	local wasInside = root ~= nil and (character:GetAttribute("InsideHouse") == true or isAtInteriorHeight(root.Position))
+	-- Parado durante a troca: dentro de casa, o chão (interior antigo) some na hora
+	if root then root.Anchored = true end
 
+	destroyHouse(state)
+	local ok, err = pcall(buildHouse, player, state)
+	if not ok then
+		warn("[HouseService] Erro ao montar '" .. houseName .. "' para " .. player.Name .. ": " .. tostring(err) .. " — voltando para a casa inicial")
+		destroyHouse(state)
+		ok, err = pcall(buildHouse, player, state, ItemCatalog.StarterHouse)
+		if not ok then warn("[HouseService] Erro ao montar a casa inicial: " .. tostring(err)) end
+	end
+
+	local moved = false
 	if wasInside and state.spawnInterior then
-		TeleportTransition.Instant(player, state.spawnInterior, function(char)
+		moved = TeleportTransition.Instant(player, state.spawnInterior, function(char)
 			char:SetAttribute("InsideHouse", true)
 			cameraEvent:FireClient(player, "Isometrico", state.focus)
 		end)
+	elseif root and state.exitTarget and state.exterior and isNearModel(state.exterior, root.Position, 4) then
+		-- Do lado de fora em cima do lote: a casa nova (maior) nasceria em volta do jogador
+		-- e a física o jogava para cima / para fora do lote. Leva para a frente da porta.
+		moved = TeleportTransition.Instant(player, state.exitTarget)
 	end
+	if not moved and root and root.Parent then root.Anchored = false end
 end
 
 InventoryService.EquippedChanged:Connect(function(player, category)
@@ -604,6 +680,38 @@ end)
 
 exitHouseEvent.OnServerEvent:Connect(function(player)
 	HouseService.ExitHouse(player)
+end)
+
+-- === RESGATE DE LIMBO ===
+-- Rede de segurança: quem cair do interior ou do mapa volta para casa em vez de ficar
+-- caindo no vazio (troca de casa, streaming atrasado, buraco no mapa...)
+local LIMBO_Y = -150     -- abaixo disso, do lado de fora, é queda para fora do mapa
+local INTERIOR_FALL = 60 -- dentro de casa: tanto abaixo do piso do interior
+task.spawn(function()
+	while true do
+		task.wait(1)
+		for player, state in pairs(houses) do
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart")
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if root and humanoid and humanoid.Health > 0 and not root.Anchored and not character:GetAttribute("Teleportando") then
+				local y = root.Position.Y
+				local inside = character:GetAttribute("InsideHouse") == true
+				if inside and state.spawnInterior and y < state.spawnInterior.Y - INTERIOR_FALL then
+					warn("[HouseService] " .. player.Name .. " caiu do interior (y=" .. math.floor(y) .. "); voltando ao spawn da casa")
+					task.spawn(TeleportTransition.Instant, player, state.spawnInterior, function()
+						cameraEvent:FireClient(player, "Isometrico", state.focus)
+					end)
+				elseif not inside and y < LIMBO_Y and state.exitTarget then
+					warn("[HouseService] " .. player.Name .. " caiu do mapa (y=" .. math.floor(y) .. "); voltando para a frente da casa")
+					task.spawn(TeleportTransition.Instant, player, state.exitTarget, function(char)
+						char:SetAttribute("InsideHouse", false)
+						cameraEvent:FireClient(player, "Normal")
+					end)
+				end
+			end
+		end
+	end
 end)
 
 -- === HANDSHAKE DE CÂMERA ===

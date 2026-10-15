@@ -74,7 +74,7 @@ ItemCatalog.Items = {
 		{
 			Name = "Sushi House",
 			Price = 10000,
-			Rarity = "Rare",
+			Rarity = "Legendary",
 			ModelName = "SushiHouse",
 			Camera = { offsetY = 0, distanceMultiplier = 0.45, cameraHeight = 0.6, cameraAngleX = 0, lookAtOffsetY = 0 },
 			Description = "🍣 Casa estilo japonês moderna\n\n• 2 andares\n• Jardim zen\n• Garagem para 2 carros\n\n🎌 Design único!",

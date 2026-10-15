@@ -18,6 +18,7 @@ local INTERIORS = {
 	CineCorn = require("./CineCorn"),
 	CandyMansion = require("./CandyMansion"),
 	SushiHouse = require("./SushiHouse"),
+	CasaDeBiscoito = require("./CasaDeBiscoito"),
 }
 
 local OUT_DIR = "src/ServerStorage/Interiors"
@@ -118,6 +119,14 @@ fs.writeDir(OUT_DIR)
 for name, build in pairs(INTERIORS) do
 	if not wanted or wanted == name then
 		local model = build(roblox)
+		-- Caixa de fundo e casca do cômodo sem sombra: o sol fazia o cômodo projetar uma
+		-- sombra enorme no chão da caixa
+		for _, groupName in ipairs({ "CaixaResidencial", "Estrutura" }) do
+			local group = model:FindFirstChild(groupName)
+			for _, d in ipairs(group and group:GetDescendants() or {}) do
+				if d:IsA("BasePart") then d.CastShadow = false end
+			end
+		end
 		local count = 0
 		for _, d in ipairs(model:GetDescendants()) do
 			if d:IsA("BasePart") then count += 1 end
