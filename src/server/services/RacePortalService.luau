@@ -10,8 +10,13 @@ local LOBBY_PLACE_ID = 139403404752525 -- Lembre-se de ALTERAR para o PlaceId do
 local teleportCooldowns = {}
 
 function RacePortalService.Start()
-	-- Espera o portal carregar no mapa
-	local portal = workspace:WaitForChild("RacePortal")
+	-- Procura em todo o Workspace (o mapa é organizado em pastas) e desiste depois de um
+	-- tempo: sem o portal, só a corrida fica desligada
+	local portal = workspace:FindFirstChild("RacePortal", true) or workspace:WaitForChild("RacePortal", 15)
+	if not portal then
+		warn("⚠️ RacePortalService: 'RacePortal' não encontrado no Workspace; portal da corrida desativado")
+		return
+	end
 
 	portal.Touched:Connect(function(hit)
 		local character = hit.Parent

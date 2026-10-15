@@ -8,6 +8,24 @@ local remoteEvent
 local playersInZone = {}
 local zones = {} -- Tabela para armazenar múltiplas zonas
 
+-- Zona -> nome da peça detectora. A peça é procurada em todo o Workspace (os prédios
+-- ficam em pastas, ex.: Workspace.Predios), com limite de tempo.
+local ZONE_DETECTORS = {
+	CoffeeShop = "CoffeeDetector",
+	FruitGym = "FruitGymDetector",
+}
+local FIND_TIMEOUT = 15
+
+local function findDetector(name)
+	local deadline = os.clock() + FIND_TIMEOUT
+	repeat
+		local found = workspace:FindFirstChild(name, true)
+		if found and found:IsA("BasePart") then return found end
+		task.wait(0.5)
+	until os.clock() > deadline
+	return nil
+end
+
 -- Inicializa o serviço
 function MusicZoneController.Start()
 	-- Cria o RemoteEvent
@@ -29,22 +47,20 @@ end
 
 -- Configura as zonas de música
 function MusicZoneController.setupZones()
-	-- Zona do Coffee Shop
-	local coffeeShopPart = workspace:WaitForChild("CoffeeInside"):WaitForChild('CoffeeDetector') -- Ajuste o caminho
-	if coffeeShopPart then
-		MusicZoneController.registerZone("CoffeeShop", coffeeShopPart)
+	-- Em segundo plano: um detector que sumiu do mapa desliga só a zona dele
+	-- (antes o WaitForChild sem limite travava o script do servidor inteiro)
+	for zoneName, detectorName in pairs(ZONE_DETECTORS) do
+		task.spawn(function()
+			local part = findDetector(detectorName)
+			if part then
+				MusicZoneController.registerZone(zoneName, part)
+			else
+				warn(("⚠️ MusicZone: peça '%s' não encontrada no Workspace; zona %s desativada"):format(detectorName, zoneName))
+			end
+		end)
 	end
-	
-	--local FruitGymDetector = workspace:WaitForChild("FruitGymInside"):WaitForChild('FruitGymDetector') 
-	local FruitGymDetector = workspace:WaitForChild('FruitGymDetector')
-	if FruitGymDetector then
-		MusicZoneController.registerZone("FruitGym", FruitGymDetector)
-	end
-	
 
-	-- Parte para adicionar novas zonas
-	-- 
-	-- MusicZoneService.registerZone("Beach", workspace.BeachZone)
+	-- Novas zonas: adicionar em ZONE_DETECTORS (ex.: Beach = "BeachDetector")
 end
 
 -- Registra uma nova zona

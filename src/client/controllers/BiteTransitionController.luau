@@ -26,8 +26,10 @@ local function initialize()
 	local screenEvents = eventsFolder:WaitForChild("ScreenEvents")
 	BiteEffectEvent = screenEvents:WaitForChild("BiteEffectEvent")
 
-	biteGui = playerGui:WaitForChild("BiteAnim", 10)
-	if not biteGui then return false end
+	-- A BiteAnim só chega ao PlayerGui quando o personagem nasce (CharacterAutoLoads
+	-- desligado), o que pode passar de 10s; espera sem limite (Start roda em segundo plano).
+	-- Com timeout math.huge o WaitForChild não solta o aviso de "Infinite yield".
+	biteGui = playerGui:WaitForChild("BiteAnim", math.huge)
 
 	frameMain = biteGui:WaitForChild("FrameMain", 5)
 	if not frameMain then return false end
@@ -109,12 +111,14 @@ local function playBiteAnimation()
 end
 
 function BiteTransitionController.Start()
-	if not initialize() then 
-		warn("❌ Falha na inicialização do BiteTransitionController")
-		return 
-	end
+	task.spawn(function()
+		if not initialize() then
+			warn("❌ Falha na inicialização do BiteTransitionController (BiteAnim sem FrameMain)")
+			return
+		end
 
-	BiteEffectEvent.OnClientEvent:Connect(playBiteAnimation)
+		BiteEffectEvent.OnClientEvent:Connect(playBiteAnimation)
+	end)
 end
 
 return BiteTransitionController

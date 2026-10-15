@@ -15,7 +15,7 @@ AnimationFixController.Start()
 HouseExitController.Start()
 PromptController.Start()
 FloorCutawayController.Start()
-BiteTransitionController.Start() -- pode esperar até 10s pela BiteAnim; fica por último
+BiteTransitionController.Start() -- espera a BiteAnim em segundo plano
 
 
 

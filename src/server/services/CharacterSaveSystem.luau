@@ -123,6 +123,11 @@ local function doSpawn(player, characterName)
 		return
 	end
 
+	if not (casaExterior or casaInterior) then
+		warn("[CharacterSaveSystem] A casa de " .. player.Name .. " não apareceu em 10s (HouseService parado?); nascendo em "
+			.. (spawnPadrao and "Workspace.SpawnLocation" or "(0, 10, 0): não há SpawnLocation na raiz do Workspace"))
+	end
+
 	local nasceuDentroDeCasa = false
 	if casaInterior and casaInterior:FindFirstChild("SpawnInterior") then
 		streamAround(player, casaInterior.SpawnInterior.Position)
